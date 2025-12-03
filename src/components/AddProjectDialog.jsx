@@ -32,43 +32,15 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
       <DialogTitle>Add New Project</DialogTitle>
       <DialogContent>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2, mt: 1 }}>
-          <TextField
-            label="Project Title"
-            name="title"
-            value={projectData.title}
-            onChange={handleChange}
-            fullWidth
-          />
-          <TextField
-            label="Literature Search Duration"
-            name="duration"
-            value={projectData.duration}
-            onChange={handleChange}
-            fullWidth
-          />
-          <TextField
-            label="Description"
-            name="description"
-            value={projectData.description}
-            onChange={handleChange}
-            fullWidth
-            multiline
-            rows={3}
-          />
-          <TextField
-            label="Owner"
-            name="owner"
-            value={projectData.owner}
-            onChange={handleChange}
-            fullWidth
-          />
+          <TextField label="Project Title" name="title" value={projectData.title} onChange={handleChange} fullWidth />
+          <TextField label="Literature Search Duration" name="duration" value={projectData.duration} onChange={handleChange} fullWidth />
+          <TextField label="Description" name="description" value={projectData.description} onChange={handleChange} fullWidth multiline rows={3} />
+          <TextField label="Owner" name="owner" value={projectData.owner} onChange={handleChange} fullWidth />
         </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose}>Cancel</Button>
-        <Button variant="contained" onClick={handleSubmit}>
-          Save
-        </Button>
+        <Button variant="contained" onClick={handleSubmit}>Save</Button>
       </DialogActions>
     </Dialog>
   );

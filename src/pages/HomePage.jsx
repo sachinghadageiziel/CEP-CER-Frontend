@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   AppBar,
   Toolbar,
@@ -12,6 +12,7 @@ import {
 import AddProjectDialog from "../components/AddProjectDialog";
 import ProjectCard from "../components/ProjectCard";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 export default function Home() {
   const [projects, setProjects] = useState([]);
@@ -20,29 +21,50 @@ export default function Home() {
 
   const navigate = useNavigate();
 
+  // 🔵 Fetch projects from backend on load
+  useEffect(() => {
+    fetchProjects();
+  }, []);
+
+  const fetchProjects = async () => {
+    try {
+      const res = await axios.get("http://127.0.0.1:5000/api/projects/list");
+      setProjects(res.data.projects);
+
+      setCounts({
+        total: res.data.projects.length,
+        active: res.data.projects.length, // Update when statuses added
+        completed: 0,
+      });
+    } catch (err) {
+      console.error("Error fetching projects", err);
+    }
+  };
+
   const handleOpenDialog = () => setOpenDialog(true);
   const handleCloseDialog = () => setOpenDialog(false);
 
-  const handleSaveProject = (data) => {
-    const newProject = {
-      id: projects.length + 1,
-      title: data.title,
-      duration: data.duration,
-      description: data.description,
-      owner: data.owner,
-      status: "Active",
-    };
+  // 🔵 Save project → calls backend API  
+  const handleSaveProject = async (data) => {
+  try {
+    const formData = new FormData();
+    formData.append("title", data.title);
+    formData.append("duration", data.duration);
+    formData.append("description", data.description);
+    formData.append("owner", data.owner);
 
-    setProjects([...projects, newProject]);
-
-    setCounts({
-      total: counts.total + 1,
-      active: counts.active + 1,
-      completed: counts.completed,
+    await axios.post("http://127.0.0.1:5000/api/projects/create", formData, {
+      headers: { "Content-Type": "multipart/form-data" }
     });
 
     handleCloseDialog();
-  };
+    fetchProjects();
+
+  } catch (err) {
+    console.error("Error creating project", err);
+    alert("Failed to create project");
+  }
+};
 
   const handleLaunchProject = (project) => {
     navigate(`/project/${project.id}`, { state: { project } });
@@ -99,7 +121,7 @@ export default function Home() {
       {/* Projects List */}
       <Grid container spacing={2} sx={{ p: 2 }}>
         {projects.map((project) => (
-          <Grid item xs={12} sm={6} md={4} key={project.id}>
+          <Grid item xs={12} sm={6} md={4} key={project.project_id}>
             <ProjectCard project={project} onLaunch={handleLaunchProject} />
           </Grid>
         ))}
