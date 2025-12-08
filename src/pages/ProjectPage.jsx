@@ -1,6 +1,7 @@
 import React from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { Box, Card, CardContent, Typography, Button, Divider } from "@mui/material";
+import Layout from "../Layout/Layout";
 
 export default function ProjectPage() {
   const { id } = useParams();
@@ -29,6 +30,7 @@ export default function ProjectPage() {
   ];
 
   return (
+    <Layout>
     <Box sx={{ p: { xs: 2, md: 4 }, width: "100%", boxSizing: "border-box" }}>
       {/* Page Header */}
       <Typography variant="h4" gutterBottom>
@@ -99,5 +101,6 @@ export default function ProjectPage() {
         ))}
       </Box>
     </Box>
+    </Layout>
   );
 }

@@ -13,6 +13,7 @@ import {
   Divider,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
+import Layout from "../Layout/Layout";
 
 export default function LiteraturePage() {
   const { id } = useParams();           // <-- get project ID from URL
@@ -152,6 +153,7 @@ export default function LiteraturePage() {
   // -------------------------------
 
   return (
+    <Layout>
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
         Literature Search – {PROJECT_ID}
@@ -339,5 +341,6 @@ export default function LiteraturePage() {
         </>
       )}
     </Box>
+    </Layout>
   );
 }

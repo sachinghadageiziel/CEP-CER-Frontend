@@ -13,6 +13,7 @@ import AddProjectDialog from "../components/AddProjectDialog";
 import ProjectCard from "../components/ProjectCard";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import Layout from "../Layout/Layout";
 
 export default function Home() {
   const [projects, setProjects] = useState([]);
@@ -21,7 +22,7 @@ export default function Home() {
 
   const navigate = useNavigate();
 
-  // 🔵 Fetch projects from backend on load
+  //  Fetch projects from backend on load
   useEffect(() => {
     fetchProjects();
   }, []);
@@ -71,9 +72,10 @@ export default function Home() {
   };
 
   return (
+    <Layout>
     <Box>
       {/* Navbar */}
-      <AppBar position="static" sx={{ backgroundColor: "#1976d2" }}>
+      <AppBar position="static" sx={{ backgroundColor: "#1976d2" ,mt: 2,}}>
         <Toolbar
           sx={{
             flexDirection: "column",
@@ -134,5 +136,6 @@ export default function Home() {
         handleSave={handleSaveProject}
       />
     </Box>
+    </Layout>
   );
 }
