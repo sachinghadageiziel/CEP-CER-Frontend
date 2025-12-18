@@ -1,23 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom"; // <-- import useParams
+import { useParams } from "react-router-dom";
 import {
   Box,
   Typography,
   Button,
-  Card,
-  Modal,
-  TextField,
-  Checkbox,
-  FormControlLabel,
-  FormGroup,
-  Divider,
+  LinearProgress,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import Layout from "../Layout/Layout";
+import LiteraturePopup from "../components/LiteraturePopup";
 
 export default function LiteraturePage() {
-  const { id } = useParams();           // <-- get project ID from URL
-  const PROJECT_ID = id;                // <-- replace PROJECT123 with dynamic ID
+  const { id: PROJECT_ID } = useParams();
 
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState(null);
@@ -42,105 +36,114 @@ export default function LiteraturePage() {
   const [columns, setColumns] = useState([]);
   const [excelBlob, setExcelBlob] = useState(null);
 
-  // -------------------------------
-  // Fetch existing All-Merged.xlsx on page load
-  // -------------------------------
+  // 🔥 Progress (frontend-only)
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  // --------------------------------
+  // Load existing data (on page load)
+  // --------------------------------
   useEffect(() => {
-    async function loadExisting() {
-      try {
-        const res = await fetch(
-          `http://localhost:5000/api/literature/existing?project_id=${PROJECT_ID}`
+    fetch(
+      `http://localhost:5000/api/literature/existing?project_id=${PROJECT_ID}`
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.masterSheet) return;
+
+        setColumns(
+          Object.keys(data.masterSheet[0]).map((key) => ({
+            field: key,
+            headerName: key,
+            width: 200,
+          }))
         );
 
-        if (!res.ok) return;
+        setMasterData(
+          data.masterSheet.map((row, i) => ({ id: i + 1, ...row }))
+        );
 
-        const data = await res.json();
-        if (!data.masterSheet || data.masterSheet.length === 0) return;
+        setExcelBlob(data.excelFile);
+      })
+      .catch(() => {});
+  }, [PROJECT_ID]);
 
-        const rowsWithId = data.masterSheet.map((row, index) => ({
-          id: index + 1,
-          ...row,
-        }));
-
-        const dynamicCols = Object.keys(data.masterSheet[0]).map((key) => ({
-          field: key,
-          headerName: key,
-          width: 200,
-        }));
-
-        setColumns(dynamicCols);
-        setMasterData(rowsWithId);
-        setExcelBlob(data.excelFile || null);
-
-        console.log("Loaded existing merged sheet ✔");
-      } catch (err) {
-        console.log("No existing merged file found.");
-      }
-    }
-
-    loadExisting();
-  }, [PROJECT_ID]); // <-- add PROJECT_ID to dependency
-
-  // -------------------------------
+  // --------------------------------
   const handleUpload = (e) => setFile(e.target.files[0]);
 
+  // --------------------------------
+  // SEARCH with FAKE PROGRESS
+  // --------------------------------
   const handleSearch = async () => {
     if (!file) return;
 
     const form = new FormData();
     form.append("project_id", PROJECT_ID);
     form.append("keywordsFile", file);
-    form.append("applyDateFilter", applyDateFilter ? "true" : "false");
+    form.append("applyDateFilter", applyDateFilter.toString());
     form.append("fromDate", fromDate);
     form.append("toDate", toDate);
-    form.append("abstract", filters.abstract ? "true" : "false");
-    form.append("freeFullText", filters.freeFullText ? "true" : "false");
-    form.append("fullText", filters.fullText ? "true" : "false");
-    form.append("pubmed", databases.pubmed ? "true" : "false");
-    form.append("cochrane", databases.cochrane ? "true" : "false");
-    form.append("googleScholar", databases.googleScholar ? "true" : "false");
+    form.append("abstract", filters.abstract.toString());
+    form.append("freeFullText", filters.freeFullText.toString());
+    form.append("fullText", filters.fullText.toString());
+
+    setRunning(true);
+    setProgress(5);
+    setOpen(false);
+
+    // 🔄 Fake smooth progress
+    let fake = 5;
+    const timer = setInterval(() => {
+      fake += Math.random() * 8;
+      if (fake < 90) setProgress(Math.floor(fake));
+    }, 800);
 
     try {
-      const res = await fetch("http://localhost:5000/api/literature/run", {
+      // Run backend pipeline (blocking)
+      await fetch("http://localhost:5000/api/literature/run", {
         method: "POST",
         body: form,
       });
 
+      // Load final result
+      const res = await fetch(
+        `http://localhost:5000/api/literature/existing?project_id=${PROJECT_ID}`
+      );
       const data = await res.json();
 
-      if (data.masterSheet && data.masterSheet.length > 0) {
-        const rowsWithId = data.masterSheet.map((row, index) => ({
-          id: index + 1,
-          ...row,
-        }));
+      clearInterval(timer);
+      setProgress(100);
 
-        const dynamicCols = Object.keys(data.masterSheet[0]).map((key) => ({
+      setColumns(
+        Object.keys(data.masterSheet[0]).map((key) => ({
           field: key,
           headerName: key,
           width: 200,
-        }));
+        }))
+      );
 
-        setColumns(dynamicCols);
-        setMasterData(rowsWithId);
-        setExcelBlob(data.excelFile || null);
-      }
+      setMasterData(
+        data.masterSheet.map((row, i) => ({ id: i + 1, ...row }))
+      );
 
-      setOpen(false);
+      setExcelBlob(data.excelFile);
+
+      setTimeout(() => setRunning(false), 600);
     } catch (err) {
-      console.error("Fetch failed:", err);
-      alert("Failed to run search. Check backend.");
+      clearInterval(timer);
+      setRunning(false);
+      alert("Literature search failed");
     }
   };
 
-  // -------------------------------
+  // --------------------------------
   const downloadExcel = () => {
     if (!excelBlob) return;
 
-    const byteCharacters = atob(excelBlob);
-    const byteNumbers = Array.from(byteCharacters, (c) => c.charCodeAt(0));
-    const byteArray = new Uint8Array(byteNumbers);
+    const bytes = atob(excelBlob);
+    const buffer = new Uint8Array([...bytes].map((c) => c.charCodeAt(0)));
 
-    const blob = new Blob([byteArray], {
+    const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
 
@@ -150,197 +153,60 @@ export default function LiteraturePage() {
     link.click();
   };
 
-  // -------------------------------
-
+  // --------------------------------
   return (
     <Layout>
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Literature Search – {PROJECT_ID}
-      </Typography>
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4">
+          Literature Search – {PROJECT_ID}
+        </Typography>
 
-      <Button variant="contained" onClick={() => setOpen(true)}>
-        Upload Keywords & Start Search
-      </Button>
-
-      {/* ---------------------------- */}
-      {/* Popup Modal */}
-      {/* ---------------------------- */}
-      <Modal open={open} onClose={() => setOpen(false)}>
-        <Card
-          sx={{
-            width: { xs: "90%", sm: 500 },
-            maxHeight: "90vh",
-            overflowY: "auto",
-            mx: "auto",
-            mt: { xs: "5vh", sm: "8vh" },
-            p: 3,
-            borderRadius: 4,
-            boxShadow: 8,
-            position: "relative",
-          }}
+        <Button
+          variant="contained"
+          sx={{ mt: 2 }}
+          disabled={running}
+          onClick={() => setOpen(true)}
         >
-          <Typography variant="h6" gutterBottom>
-            Upload Inputs
-          </Typography>
+          Upload Keywords & Start Search
+        </Button>
 
-          <Button variant="outlined" component="label">
-            Upload Excel
-            <input hidden type="file" onChange={handleUpload} />
-          </Button>
-          {file && <Typography sx={{ mt: 1 }}>{file.name}</Typography>}
-
-          <Divider sx={{ my: 2 }} />
-
-          {/* Date Filter */}
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={applyDateFilter}
-                onChange={(e) => setApplyDateFilter(e.target.checked)}
-              />
-            }
-            label="Apply Date Range"
-          />
-          {applyDateFilter && (
-            <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
-              <TextField
-                label="From Date (YYYY-MM-DD)"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                fullWidth
-              />
-              <TextField
-                label="To Date (YYYY-MM-DD)"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                fullWidth
-              />
-            </Box>
-          )}
-
-          <Divider sx={{ my: 2 }} />
-
-          {/* Filters */}
-          <Typography variant="subtitle1">Text Availability</Typography>
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={filters.abstract}
-                  onChange={(e) =>
-                    setFilters({ ...filters, abstract: e.target.checked })
-                  }
-                />
-              }
-              label="Abstract"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={filters.freeFullText}
-                  onChange={(e) =>
-                    setFilters({ ...filters, freeFullText: e.target.checked })
-                  }
-                />
-              }
-              label="Free Full Text"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={filters.fullText}
-                  onChange={(e) =>
-                    setFilters({ ...filters, fullText: e.target.checked })
-                  }
-                />
-              }
-              label="Full Text"
-            />
-          </FormGroup>
-
-          <Divider sx={{ my: 2 }} />
-
-          {/* Databases */}
-          <Typography variant="subtitle1">Databases</Typography>
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={databases.pubmed}
-                  onChange={(e) =>
-                    setDatabases({ ...databases, pubmed: e.target.checked })
-                  }
-                />
-              }
-              label="PubMed"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={databases.cochrane}
-                  onChange={(e) =>
-                    setDatabases({ ...databases, cochrane: e.target.checked })
-                  }
-                />
-              }
-              label="Cochrane"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={databases.googleScholar}
-                  onChange={(e) =>
-                    setDatabases({
-                      ...databases,
-                      googleScholar: e.target.checked,
-                    })
-                  }
-                />
-              }
-              label="Google Scholar"
-            />
-          </FormGroup>
-
-          <Button
-            variant="contained"
-            sx={{ mt: 2 }}
-            disabled={!file}
-            onClick={handleSearch}
-          >
-            Search
-          </Button>
-        </Card>
-      </Modal>
-
-      {/* ---------------------------- */}
-      {/* Results */}
-      {/* ---------------------------- */}
-      {masterData.length > 0 && (
-        <>
-          <Typography variant="h5" sx={{ mt: 4 }}>
-            Master Sheet Results
-          </Typography>
-
-          <Button
-            variant="outlined"
-            sx={{ mt: 2, mb: 2 }}
-            onClick={downloadExcel}
-          >
-            Download Merged Excel
-          </Button>
-
-          <Box sx={{ height: 500, width: "100%" }}>
-            <DataGrid
-              rows={masterData}
-              columns={columns}
-              pageSize={25}
-              rowsPerPageOptions={[25, 50, 100]}
-            />
+        {running && (
+          <Box sx={{ mt: 3 }}>
+            <Typography>{progress}% Processing…</Typography>
+            <LinearProgress variant="determinate" value={progress} />
           </Box>
-        </>
-      )}
-    </Box>
+        )}
+
+        <LiteraturePopup
+          open={open}
+          onClose={() => setOpen(false)}
+          file={file}
+          onFileUpload={handleUpload}
+          applyDateFilter={applyDateFilter}
+          setApplyDateFilter={setApplyDateFilter}
+          fromDate={fromDate}
+          setFromDate={setFromDate}
+          toDate={toDate}
+          setToDate={setToDate}
+          filters={filters}
+          setFilters={setFilters}
+          databases={databases}
+          setDatabases={setDatabases}
+          onSearch={handleSearch}
+        />
+
+        {masterData.length > 0 && (
+          <>
+            <Button sx={{ mt: 2 }} onClick={downloadExcel}>
+              Download Excel
+            </Button>
+
+            <Box sx={{ height: 500, mt: 2 }}>
+              <DataGrid rows={masterData} columns={columns} />
+            </Box>
+          </>
+        )}
+      </Box>
     </Layout>
   );
 }

@@ -16,20 +16,20 @@ export default function Footer() {
         
         {/* ============= INDIA OFFICES ============= */}
         <Grid item xs={12} md={4}>
-          <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
+          {/* <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
             India Offices
-          </Typography>
+          </Typography> */}
 
-          <Typography variant="subtitle1" fontWeight={600}>
+          {/* <Typography variant="subtitle1" fontWeight={600}>
             Pune
           </Typography>
           <Typography variant="body2" sx={{ mb: 1 }}>
             601/ 604, Pentagon P1, Magarpatta City,<br />
             Hadapsar, Pune 411028.<br />
             Phone: +91 72762 12555
-          </Typography>
+          </Typography> */}
 
-          <Typography variant="subtitle1" fontWeight={600}>
+          {/* <Typography variant="subtitle1" fontWeight={600}>
             Bangalore
           </Typography>
           <Typography variant="body2">
@@ -37,34 +37,34 @@ export default function Footer() {
             SY NO: 55/3 & 55/4, Sakra World Hospital,<br />
             Devarabisanahalli, Bengaluru 560103, Karnataka.<br />
             Phone: +91 72762 12555
-          </Typography>
+          </Typography> */}
         </Grid>
 
         {/* ============= USA OFFICE ============= */}
         <Grid item xs={12} md={4}>
-          <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
+          {/* <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
             USA Office
           </Typography>
           <Typography variant="body2">
             121 Washington Avenue North, Suite 306<br />
             Minneapolis, MN 55401<br />
             Office Phone: +1 (612) 445-8764
-          </Typography>
+          </Typography> */}
         </Grid>
 
         {/* ============= CONTACT ============= */}
         <Grid item xs={12} md={4}>
-          <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
+          {/* <Typography variant="h6" fontWeight={700} sx={{ mb: 2 }}>
             Contact
           </Typography>
           <Typography variant="body2">
             Email: sales@iziel.com
-          </Typography>
+          </Typography> */}
         </Grid>
 
       </Grid>
 
-      <Divider sx={{ my: 3, borderColor: "rgba(255,255,255,0.3)" }} />
+      {/* <Divider sx={{ my: 3, borderColor: "rgba(255,255,255,0.3)" }} /> */}
 
       {/* Bottom small footer */}
       <Box sx={{ textAlign: "center", pb: 1 }}>

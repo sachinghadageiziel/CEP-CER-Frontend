@@ -1,143 +1,210 @@
-import React, { useState } from "react";
+import React from "react";
 import {
-  Box,
+  Card,
+  Modal,
   Typography,
   Button,
+  TextField,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
+  Divider,
+  Box,
+  LinearProgress,
 } from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
-import LiteraturePopup from "../components/LiteraturePopup";
 
-export default function LiteraturePage() {
-  const [open, setOpen] = useState(false);
-  const [file, setFile] = useState(null);
+export default function LiteraturePopup({
+  open,
+  onClose,
+  file,
+  onFileUpload,
+  applyDateFilter,
+  setApplyDateFilter,
+  fromDate,
+  setFromDate,
+  toDate,
+  setToDate,
+  filters,
+  setFilters,
+  databases,
+  setDatabases,
+  onSearch,
 
-  const [applyDateFilter, setApplyDateFilter] = useState(false);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-
-  const [filters, setFilters] = useState({
-    abstract: false,
-    freeFullText: false,
-    fullText: false,
-  });
-
-  const [databases, setDatabases] = useState({
-    pubmed: true,
-    cochrane: false,
-    googleScholar: false,
-  });
-
-  const [masterData, setMasterData] = useState([]);
-  const [excelBlob, setExcelBlob] = useState(null);
-
-  const handleUpload = (e) => setFile(e.target.files[0]);
-
-  const handleSearch = async () => {
-  const form = new FormData();
-  form.append("keywordsFile", file);
-  form.append("applyDateFilter", applyDateFilter.toString());
-  form.append("fromDate", fromDate);
-  form.append("toDate", toDate);
-  form.append("abstract", filters.abstract.toString());
-  form.append("freeFullText", filters.freeFullText.toString());
-  form.append("fullText", filters.fullText.toString());
-  form.append("pubmed", databases.pubmed.toString());
-  form.append("cochrane", databases.cochrane.toString());
-  form.append("googleScholar", databases.googleScholar.toString());
-
-  const res = await fetch("http://localhost:5000/api/literature/run", {
-    method: "POST",
-    body: form,
-  });
-
-  const data = await res.json();
-
-  // IMPORTANT FIX — Datagrid requires "id"
-  setMasterData(
-    data.masterSheet.map((row, index) => ({
-      id: index + 1,
-      ...row,
-    }))
-  );
-
-  setExcelBlob(data.excelFile);
-  setOpen(false);
-};
-
-
-  const downloadExcel = () => {
-    const byteCharacters = atob(excelBlob);
-    const byteNumbers = Array.from(byteCharacters, (c) => c.charCodeAt(0));
-    const byteArray = new Uint8Array(byteNumbers);
-    const file = new Blob([byteArray], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(file);
-    link.download = "All-Merged.xlsx";
-    link.click();
-  };
-
-  const columns = [
-  { field: "Sr.No", headerName: "Sr.No", width: 80 },
-  { field: "PMID", headerName: "PMID", width: 150 },
-  { field: "Title", headerName: "Title", width: 300 },
-  { field: "Journal", headerName: "Journal", width: 200 },
-  { field: "PubDate", headerName: "Pub Date", width: 150 },
-  { field: "Authors", headerName: "Authors", width: 200 },
-];
-
-
+  // 🔥 ADDED (do not remove)
+  running = false,
+  progress = 0,
+}) {
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Literature Search
-      </Typography>
+    <Modal open={open} onClose={onClose}>
+      <Card
+        sx={{
+          width: { xs: "90%", sm: 500 },
+          maxHeight: "90vh",
+          overflowY: "auto",
+          mx: "auto",
+          mt: { xs: "5vh", sm: "8vh" },
+          p: 3,
+          borderRadius: 4,
+          boxShadow: 8,
+        }}
+      >
+        <Typography variant="h6" gutterBottom>
+          Upload Inputs
+        </Typography>
 
-      <Button variant="contained" onClick={() => setOpen(true)}>
-        Upload Keywords & Start Search
-      </Button>
+        {/* Excel Upload */}
+        <Button variant="outlined" component="label" disabled={running}>
+          Upload Excel
+          <input hidden type="file" onChange={onFileUpload} />
+        </Button>
+        {file && <Typography sx={{ mt: 1 }}>{file.name}</Typography>}
 
-      {/* Popup Component */}
-      <LiteraturePopup
-        open={open}
-        onClose={() => setOpen(false)}
-        file={file}
-        onFileUpload={handleUpload}
-        applyDateFilter={applyDateFilter}
-        setApplyDateFilter={setApplyDateFilter}
-        fromDate={fromDate}
-        setFromDate={setFromDate}
-        toDate={toDate}
-        setToDate={setToDate}
-        filters={filters}
-        setFilters={setFilters}
-        databases={databases}
-        setDatabases={setDatabases}
-        onSearch={handleSearch}
-      />
+        <Divider sx={{ my: 2 }} />
 
-      {/* Results Table */}
-      {masterData.length > 0 && (
-        <>
-          <Typography variant="h5" sx={{ mt: 4 }}>
-            Master Sheet Results
-          </Typography>
+        {/* Date Filter */}
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={applyDateFilter}
+              disabled={running}
+              onChange={(e) => setApplyDateFilter(e.target.checked)}
+            />
+          }
+          label="Apply Date Range"
+        />
 
-          <Button
-            variant="outlined"
-            sx={{ mt: 2, mb: 2 }}
-            onClick={downloadExcel}
-          >
-            Download Merged Excel
-          </Button>
-
-          <Box sx={{ height: 500, width: "100%" }}>
-            <DataGrid rows={masterData} columns={columns} />
+        {applyDateFilter && (
+          <Box sx={{ display: "flex", gap: 2, mt: 1 }}>
+            <TextField
+              label="From Date (YYYY-MM-DD)"
+              value={fromDate}
+              disabled={running}
+              onChange={(e) => setFromDate(e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="To Date (YYYY-MM-DD)"
+              value={toDate}
+              disabled={running}
+              onChange={(e) => setToDate(e.target.value)}
+              fullWidth
+            />
           </Box>
-        </>
-      )}
-    </Box>
+        )}
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Filters */}
+        <Typography variant="subtitle1">Text Availability</Typography>
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={filters.abstract}
+                disabled={running}
+                onChange={(e) =>
+                  setFilters({ ...filters, abstract: e.target.checked })
+                }
+              />
+            }
+            label="Abstract"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={filters.freeFullText}
+                disabled={running}
+                onChange={(e) =>
+                  setFilters({ ...filters, freeFullText: e.target.checked })
+                }
+              />
+            }
+            label="Free Full Text"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={filters.fullText}
+                disabled={running}
+                onChange={(e) =>
+                  setFilters({ ...filters, fullText: e.target.checked })
+                }
+              />
+            }
+            label="Full Text"
+          />
+        </FormGroup>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* Databases */}
+        <Typography variant="subtitle1">Databases</Typography>
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={databases.pubmed}
+                disabled={running}
+                onChange={(e) =>
+                  setDatabases({ ...databases, pubmed: e.target.checked })
+                }
+              />
+            }
+            label="PubMed"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={databases.cochrane}
+                disabled={running}
+                onChange={(e) =>
+                  setDatabases({ ...databases, cochrane: e.target.checked })
+                }
+              />
+            }
+            label="Cochrane"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={databases.googleScholar}
+                disabled={running}
+                onChange={(e) =>
+                  setDatabases({
+                    ...databases,
+                    googleScholar: e.target.checked,
+                  })
+                }
+              />
+            }
+            label="Google Scholar"
+          />
+        </FormGroup>
+
+        {/* 🔥 SEARCH BUTTON */}
+        <Button
+          variant="contained"
+          sx={{ mt: 3 }}
+          disabled={!file || running}
+          onClick={onSearch}
+        >
+          {running ? "Processing…" : "Search"}
+        </Button>
+
+        {/* 🔥 PROGRESS UI (REAL BACKEND) */}
+        {running && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" align="center">
+              {progress}% completed
+            </Typography>
+            <LinearProgress
+              variant="determinate"
+              value={progress}
+              sx={{ mt: 1 }}
+            />
+          </Box>
+        )}
+      </Card>
+    </Modal>
   );
 }
