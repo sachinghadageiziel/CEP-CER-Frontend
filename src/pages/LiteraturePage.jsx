@@ -36,7 +36,7 @@ export default function LiteraturePage() {
   const [columns, setColumns] = useState([]);
   const [excelBlob, setExcelBlob] = useState(null);
 
-  // 🔥 Progress (frontend-only)
+  //   Progress (frontend-only)
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
 
@@ -71,9 +71,7 @@ export default function LiteraturePage() {
   // --------------------------------
   const handleUpload = (e) => setFile(e.target.files[0]);
 
-  // --------------------------------
-  // SEARCH with FAKE PROGRESS
-  // --------------------------------
+
   const handleSearch = async () => {
     if (!file) return;
 
@@ -91,7 +89,7 @@ export default function LiteraturePage() {
     setProgress(5);
     setOpen(false);
 
-    // 🔄 Fake smooth progress
+   
     let fake = 5;
     const timer = setInterval(() => {
       fake += Math.random() * 8;
@@ -99,7 +97,7 @@ export default function LiteraturePage() {
     }, 800);
 
     try {
-      // Run backend pipeline (blocking)
+      
       await fetch("http://localhost:5000/api/literature/run", {
         method: "POST",
         body: form,

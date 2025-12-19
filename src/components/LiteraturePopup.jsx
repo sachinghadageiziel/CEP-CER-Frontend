@@ -29,8 +29,6 @@ export default function LiteraturePopup({
   databases,
   setDatabases,
   onSearch,
-
-  // 🔥 ADDED (do not remove)
   running = false,
   progress = 0,
 }) {
@@ -181,7 +179,6 @@ export default function LiteraturePopup({
           />
         </FormGroup>
 
-        {/* 🔥 SEARCH BUTTON */}
         <Button
           variant="contained"
           sx={{ mt: 3 }}
@@ -191,7 +188,6 @@ export default function LiteraturePopup({
           {running ? "Processing…" : "Search"}
         </Button>
 
-        {/* 🔥 PROGRESS UI (REAL BACKEND) */}
         {running && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="body2" align="center">

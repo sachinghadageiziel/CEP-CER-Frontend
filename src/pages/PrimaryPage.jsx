@@ -7,83 +7,95 @@ import PrimarySearchPopup from "../components/PrimaryPopup";
 import * as XLSX from "xlsx";
 
 export default function PrimarySearchPage() {
-  const { id } = useParams();
-  const PROJECT_ID = id;
+  const { id: PROJECT_ID } = useParams();
 
   const [open, setOpen] = useState(false);
 
-    
   // Uploads
-    
   const [excelFile, setExcelFile] = useState(null);
   const [ifuFile, setIfuFile] = useState(null);
 
-    
-  // Criteria
-    
+  // Criteria (kept for future use)
   const [inclusionCriteria, setInclusionCriteria] = useState("");
   const [exclusionCriteria, setExclusionCriteria] = useState("");
 
-    
   // Results
-    
   const [masterData, setMasterData] = useState([]);
   const [columns, setColumns] = useState([]);
+  const [excelBlob, setExcelBlob] = useState(null);
 
-    
-  // Handlers
-    
+  // Upload handlers
   const handleExcelUpload = (e) => setExcelFile(e.target.files[0]);
   const handleIfuUpload = (e) => setIfuFile(e.target.files[0]);
 
-  // TEMP: local Excel preview (API later)
-  const handleSearch = () => {
-    if (!excelFile) return;
+  //   REAL API CALL
+  const handleSearch = async () => {
+    if (!excelFile || !ifuFile) return;
 
-    const reader = new FileReader();
+    const form = new FormData();
+    form.append("project_id", PROJECT_ID);
+    form.append("all_merged", excelFile); 
+    form.append("ifu_pdf", ifuFile);      
 
-    reader.onload = (e) => {
-      const binary = e.target.result;
-      const workbook = XLSX.read(binary, { type: "binary" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
+    try {
+      const res = await fetch("http://localhost:5000/api/primary/run", {
+        method: "POST",
+        body: form,
+      });
 
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-      if (!jsonData || jsonData.length === 0) return;
+      const data = await res.json();
+      if (!data.excelFile) return;
 
-      const dynamicColumns = Object.keys(jsonData[0]).map((key) => ({
-        field: key,
-        headerName: key,
-        width: 200,
-      }));
+      setExcelBlob(data.excelFile);
 
-      const rowsWithId = jsonData.map((row, index) => ({
-        id: index + 1,
-        ...row,
-      }));
+      // Decode returned Excel → DataGrid
+      const binary = atob(data.excelFile);
+      const bytes = new Uint8Array([...binary].map(c => c.charCodeAt(0)));
+      const workbook = XLSX.read(bytes, { type: "array" });
 
-      setColumns(dynamicColumns);
-      setMasterData(rowsWithId);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(sheet);
+
+      if (!jsonData.length) return;
+
+      setColumns(
+        Object.keys(jsonData[0]).map((key) => ({
+          field: key,
+          headerName: key,
+          width: 200,
+        }))
+      );
+
+      setMasterData(
+        jsonData.map((row, i) => ({
+          id: i + 1,
+          ...row,
+        }))
+      );
+
       setOpen(false);
-    };
-
-    reader.readAsBinaryString(excelFile);
+    } catch (err) {
+      alert("Primary screening failed");
+      console.error(err);
+    }
   };
 
   const downloadExcel = () => {
-    if (masterData.length === 0) return;
+    if (!excelBlob) return;
 
-    const exportRows = masterData.map(({ id, ...rest }) => rest);
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
+    const binary = atob(excelBlob);
+    const bytes = new Uint8Array([...binary].map(c => c.charCodeAt(0)));
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Primary Search");
-    XLSX.writeFile(workbook, "Primary-Search-Results.xlsx");
+    const blob = new Blob([bytes], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Primary-Search-Results.xlsx";
+    link.click();
   };
 
-    
-  // UI
-    
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
@@ -95,7 +107,7 @@ export default function PrimarySearchPage() {
           Import Excel
         </Button>
 
-        {/* Popup */}
+        {/* Popup (UNCHANGED UI) */}
         <PrimarySearchPopup
           open={open}
           onClose={() => setOpen(false)}
@@ -117,25 +129,16 @@ export default function PrimarySearchPage() {
               Primary Search Results
             </Typography>
 
-            <Button
-              variant="outlined"
-              sx={{ mt: 2, mb: 2 }}
-              onClick={downloadExcel}
-            >
+            <Button sx={{ mt: 2, mb: 2 }} onClick={downloadExcel}>
               Download Results
             </Button>
 
-            <Box sx={{ height: 500, width: "100%" }}>
-              <DataGrid
-                rows={masterData}
-                columns={columns}
-                pageSize={25}
-                rowsPerPageOptions={[25, 50, 100]}
-              />
+            <Box sx={{ height: 500 }}>
+              <DataGrid rows={masterData} columns={columns} />
             </Box>
           </>
         )}
-      </Box>
+      </Box>Sure
     </Layout>
   );
 }
