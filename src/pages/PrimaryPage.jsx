@@ -33,9 +33,8 @@ export default function PrimarySearchPage() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // ----------------------------------------
-  // LOAD EXISTING DATA (same as Literature)
-  // ----------------------------------------
+  
+  // LOAD EXISTING DATA 
   useEffect(() => {
     fetch(
       `http://localhost:5000/api/primary/existing?project_id=${PROJECT_ID}`
@@ -61,13 +60,13 @@ export default function PrimarySearchPage() {
       .catch(() => {});
   }, [PROJECT_ID]);
 
-  // ----------------------------------------
+ 
   const handleExcelUpload = (e) => setExcelFile(e.target.files[0]);
   const handleIfuUpload = (e) => setIfuFile(e.target.files[0]);
 
-  // ----------------------------------------
+ 
   // PRIMARY SEARCH
-  // ----------------------------------------
+
   const handleSearch = async () => {
     if (!excelFile || !ifuFile) return;
 
@@ -80,7 +79,7 @@ export default function PrimarySearchPage() {
     setProgress(5);
     setOpen(false);
 
-    // Fake smooth progress
+    
     let fake = 5;
     const timer = setInterval(() => {
       fake += Math.random() * 10;
@@ -124,7 +123,7 @@ export default function PrimarySearchPage() {
     }
   };
 
-  // ----------------------------------------
+
   const downloadExcel = () => {
     if (!excelBlob) return;
 
@@ -141,7 +140,7 @@ export default function PrimarySearchPage() {
     link.click();
   };
 
-  // ----------------------------------------
+ 
   return (
     <Layout>
       <Box sx={{ p: 3 }}>

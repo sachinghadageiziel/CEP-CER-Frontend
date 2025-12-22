@@ -1,7 +1,19 @@
 import React from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
-import { Box, Card, CardContent, Typography, Button, Divider } from "@mui/material";
+import {
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  Button,
+  Divider,
+} from "@mui/material";
 import Layout from "../Layout/Layout";
+
+// 🔹 Images
+import literatureImg from "../assets/literature.png";
+import primaryImg from "../assets/Primary.png";
+import secondaryImg from "../assets/secondary.png";
 
 export default function ProjectPage() {
   const { id } = useParams();
@@ -16,91 +28,113 @@ export default function ProjectPage() {
       title: "Literature Search",
       subtitle: "Upload keywords and search across multiple databases",
       path: "literature",
+      image: literatureImg,
     },
     {
       title: "Primary Screening",
       subtitle: "Review and screen literature based on inclusion criteria",
       path: "primary",
+      image: primaryImg,
     },
     {
       title: "Secondary Screening",
       subtitle: "Detailed evaluation and quality assessment of selected papers",
       path: "secondary",
+      image: secondaryImg,
     },
   ];
 
   return (
     <Layout>
-    <Box sx={{ p: { xs: 2, md: 4 }, width: "100%", boxSizing: "border-box" }}>
-      {/* Page Header */}
-      <Typography variant="h4" gutterBottom>
-        {project?.title} (Project ID: {id})
-      </Typography>
-      <Typography variant="body1" sx={{ mb: 4 }}>
-        Owner: {project?.owner} • Duration: {project?.duration}
-      </Typography>
+      <Box sx={{ p: { xs: 2, md: 4 }, width: "100%" }}>
+        {/* Header */}
+        <Typography variant="h4" gutterBottom>
+          {project?.title} (Project ID: {id})
+        </Typography>
 
-      {/* Steps Row */}
-      <Box
-        sx={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          gap: 3,
-          width: "100%",
-          maxWidth: 1400, // container max width
-          margin: "0 auto", // center horizontally
-        }}
-      >
-        {steps.map((step, index) => (
-          <Card
-            key={index}
-            sx={{
-              flex: {
-                xs: "1 1 100%",  // mobile: full width
-                sm: "1 1 45%",   // tablet: ~2 per row
-                md: "1 1 30%",   // desktop: ~3 per row
-              },
-              minHeight: 350,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              borderRadius: 3,
-              boxShadow: "0px 4px 12px rgba(0,0,0,0.15)",
-              transition: "0.2s",
-              "&:hover": { transform: "translateY(-5px)", boxShadow: 6 },
-            }}
-          >
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                {step.title}
-              </Typography>
+        <Typography variant="body1" sx={{ mb: 4 }}>
+          Owner: {project?.owner} • Duration: {project?.duration}
+        </Typography>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {step.subtitle}
-              </Typography>
-
-              <Divider sx={{ my: 2 }} />
-
-              <Typography variant="body2" sx={{ fontWeight: "bold" }}>
-                Items Processed: {itemsProcessed}
-              </Typography>
-            </CardContent>
-
-            <Button
-              variant="contained"
-              fullWidth
-              sx={{ mt: 2 }}
-              onClick={() =>
-                navigate(`/project/${id}/${step.path}`, { state: { project } })
-              }
+        {/* Cards */}
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: 3,
+            maxWidth: 1400,
+            mx: "auto",
+          }}
+        >
+          {steps.map((step, index) => (
+            <Card
+              key={index}
+              sx={{
+                flex: {
+                  xs: "1 1 100%",
+                  sm: "1 1 45%",
+                  md: "1 1 30%",
+                },
+                minHeight: 380,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                borderRadius: 3,
+                overflow: "hidden",
+                boxShadow: "0px 6px 18px rgba(0,0,0,0.15)",
+                transition: "all 0.25s ease",
+                "&:hover": {
+                  transform: "translateY(-6px)",
+                  boxShadow: "0px 14px 40px rgba(0,0,0,0.2)",
+                },
+              }}
             >
-              Start
-            </Button>
-          </Card>
-        ))}
+              {/* 🖼 Image */}
+              <Box
+                sx={{
+                  height: 160,
+                  background: `url(${step.image}) center / cover no-repeat`,
+                }}
+              />
+
+              <CardContent sx={{ flexGrow: 1 }}>
+                <Typography variant="h6" gutterBottom>
+                  {step.title}
+                </Typography>
+
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 2 }}
+                >
+                  {step.subtitle}
+                </Typography>
+
+                <Divider sx={{ my: 2 }} />
+
+                <Typography variant="body2" fontWeight="bold">
+                  Items Processed: {itemsProcessed}
+                </Typography>
+              </CardContent>
+
+              <Box sx={{ p: 2 }}>
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={() =>
+                    navigate(`/project/${id}/${step.path}`, {
+                      state: { project },
+                    })
+                  }
+                >
+                  Start
+                </Button>
+              </Box>
+            </Card>
+          ))}
+        </Box>
       </Box>
-    </Box>
     </Layout>
   );
 }
