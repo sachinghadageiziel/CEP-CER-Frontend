@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import {
   Box,
@@ -20,7 +20,7 @@ export default function PrimarySearchPage() {
   const [excelFile, setExcelFile] = useState(null);
   const [ifuFile, setIfuFile] = useState(null);
 
-  // Criteria (future)
+  // Criteria (future use)
   const [inclusionCriteria, setInclusionCriteria] = useState("");
   const [exclusionCriteria, setExclusionCriteria] = useState("");
 
@@ -29,14 +29,45 @@ export default function PrimarySearchPage() {
   const [columns, setColumns] = useState([]);
   const [excelBlob, setExcelBlob] = useState(null);
 
-  //  Progress UI
+  // Progress UI
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  // ----------------------------------------
+  // LOAD EXISTING DATA (same as Literature)
+  // ----------------------------------------
+  useEffect(() => {
+    fetch(
+      `http://localhost:5000/api/primary/existing?project_id=${PROJECT_ID}`
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.masterSheet) return;
+
+        setColumns(
+          Object.keys(data.masterSheet[0]).map((key) => ({
+            field: key,
+            headerName: key,
+            width: 200,
+          }))
+        );
+
+        setMasterData(
+          data.masterSheet.map((row, i) => ({ id: i + 1, ...row }))
+        );
+
+        setExcelBlob(data.excelFile);
+      })
+      .catch(() => {});
+  }, [PROJECT_ID]);
+
+  // ----------------------------------------
   const handleExcelUpload = (e) => setExcelFile(e.target.files[0]);
   const handleIfuUpload = (e) => setIfuFile(e.target.files[0]);
 
-   
+  // ----------------------------------------
+  // PRIMARY SEARCH
+  // ----------------------------------------
   const handleSearch = async () => {
     if (!excelFile || !ifuFile) return;
 
@@ -49,7 +80,7 @@ export default function PrimarySearchPage() {
     setProgress(5);
     setOpen(false);
 
-    //  Smooth fake progress (same pattern as Literature)
+    // Fake smooth progress
     let fake = 5;
     const timer = setInterval(() => {
       fake += Math.random() * 10;
@@ -57,24 +88,22 @@ export default function PrimarySearchPage() {
     }, 900);
 
     try {
-      const res = await fetch("http://localhost:5000/api/primary/run", {
+      await fetch("http://localhost:5000/api/primary/run", {
         method: "POST",
         body: form,
       });
 
+      // Reload from existing endpoint
+      const res = await fetch(
+        `http://localhost:5000/api/primary/existing?project_id=${PROJECT_ID}`
+      );
       const data = await res.json();
+
       clearInterval(timer);
       setProgress(100);
 
-      // Decode Excel
-      const binary = atob(data.excelFile);
-      const bytes = new Uint8Array([...binary].map(c => c.charCodeAt(0)));
-      const workbook = XLSX.read(bytes, { type: "array" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(sheet);
-
       setColumns(
-        Object.keys(jsonData[0]).map((key) => ({
+        Object.keys(data.masterSheet[0]).map((key) => ({
           field: key,
           headerName: key,
           width: 200,
@@ -82,7 +111,7 @@ export default function PrimarySearchPage() {
       );
 
       setMasterData(
-        jsonData.map((row, i) => ({ id: i + 1, ...row }))
+        data.masterSheet.map((row, i) => ({ id: i + 1, ...row }))
       );
 
       setExcelBlob(data.excelFile);
@@ -92,15 +121,15 @@ export default function PrimarySearchPage() {
       clearInterval(timer);
       setRunning(false);
       alert("Primary screening failed");
-      console.error(err);
     }
   };
 
+  // ----------------------------------------
   const downloadExcel = () => {
     if (!excelBlob) return;
 
     const binary = atob(excelBlob);
-    const bytes = new Uint8Array([...binary].map(c => c.charCodeAt(0)));
+    const bytes = new Uint8Array([...binary].map((c) => c.charCodeAt(0)));
 
     const blob = new Blob([bytes], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -112,6 +141,7 @@ export default function PrimarySearchPage() {
     link.click();
   };
 
+  // ----------------------------------------
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
@@ -160,9 +190,6 @@ export default function PrimarySearchPage() {
             <Box sx={{ height: 500, mt: 2 }}>
               <DataGrid rows={masterData} columns={columns} />
             </Box>
-
-
-            
           </>
         )}
       </Box>

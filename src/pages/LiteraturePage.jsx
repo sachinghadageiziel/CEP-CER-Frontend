@@ -35,13 +35,11 @@ export default function LiteraturePage() {
   const [masterData, setMasterData] = useState([]);
   const [columns, setColumns] = useState([]);
   const [excelBlob, setExcelBlob] = useState(null);
-
-  //   Progress (frontend-only)
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
 
 
-  // Load existing data (on page load)
+  // Load existing data
 
   useEffect(() => {
     fetch(
@@ -102,7 +100,6 @@ export default function LiteraturePage() {
         body: form,
       });
 
-      // Load final result
       const res = await fetch(
         `http://localhost:5000/api/literature/existing?project_id=${PROJECT_ID}`
       );
