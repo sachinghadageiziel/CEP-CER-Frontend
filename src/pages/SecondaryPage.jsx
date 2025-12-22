@@ -1,9 +1,17 @@
 import React, { useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
-import { Box, Typography, Button } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Grid,
+} from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import Layout from "../Layout/Layout";
+
 import SecondaryPopup from "../components/SecondaryPopup";
+import PdfDownloadPopup from "../components/PdfDownloadPopup";
+import ActionCard from "../components/ActionCard";
+
 import * as XLSX from "xlsx";
 
 export default function SecondaryPage() {
@@ -11,80 +19,116 @@ export default function SecondaryPage() {
   const location = useLocation();
   const project = location.state?.project;
 
-  const [open, setOpen] = useState(false);
+    
+  // Popup states
+    
+  const [openSecondary, setOpenSecondary] = useState(false);
+  const [openPdfDownload, setOpenPdfDownload] = useState(false);
 
-  // -------------------------------
+    
   // Uploads
-  // -------------------------------
+    
   const [excelFile, setExcelFile] = useState(null);
   const [ifuFile, setIfuFile] = useState(null);
 
-  // -------------------------------
+    
   // Criteria
-  // -------------------------------
+    
   const [inclusionCriteria, setInclusionCriteria] = useState("");
   const [exclusionCriteria, setExclusionCriteria] = useState("");
 
-  // -------------------------------
+    
   // Results
-  // -------------------------------
+    
   const [rows, setRows] = useState([]);
   const [columns, setColumns] = useState([]);
 
-  // -------------------------------
+    
+  // Card running state
+    
+  const [runningCard, setRunningCard] = useState(null);
+
+    
   // Handlers
-  // -------------------------------
+    
   const handleExcelUpload = (e) => setExcelFile(e.target.files[0]);
   const handleIfuUpload = (e) => setIfuFile(e.target.files[0]);
 
-  // TEMP: local Excel preview (API later)
-  const handleSearch = () => {
+    
+  // Secondary Search (existing logic)
+    
+  const handleSecondarySearch = () => {
     if (!excelFile) return;
 
-    const reader = new FileReader();
+    setRunningCard("secondary");
 
+    const reader = new FileReader();
     reader.onload = (e) => {
       const binary = e.target.result;
       const workbook = XLSX.read(binary, { type: "binary" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(sheet);
 
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-      if (!jsonData || jsonData.length === 0) return;
+      if (!jsonData.length) return;
 
-      const dynamicColumns = Object.keys(jsonData[0]).map((key) => ({
-        field: key,
-        headerName: key,
-        width: 200,
-      }));
+      setColumns(
+        Object.keys(jsonData[0]).map((key) => ({
+          field: key,
+          headerName: key,
+          width: 200,
+        }))
+      );
 
-      const tableRows = jsonData.map((row, index) => ({
-        id: index + 1,
-        ...row,
-      }));
+      setRows(
+        jsonData.map((row, i) => ({
+          id: i + 1,
+          ...row,
+        }))
+      );
 
-      setColumns(dynamicColumns);
-      setRows(tableRows);
-      setOpen(false);
+      setRunningCard(null);
+      setOpenSecondary(false);
     };
 
     reader.readAsBinaryString(excelFile);
   };
 
-  const downloadResults = () => {
-    if (rows.length === 0) return;
+    
+  // Action Cards (dynamic-ready)
+    
+  const actionCards = [
+    {
+      id: "pdf-download",
+      title: "PDF Download",
+      description: "Download project related PDFs",
+      onStart: () => {
+        setRunningCard("pdf-download");
+        setOpenPdfDownload(true);
+      },
+    },
+    {
+      id: "pdf-text",
+      title: "PDF → Text",
+      description: "Convert PDF documents into text",
+      onStart: () => {
+        setRunningCard("pdf-text");
+        // api hook
+        setTimeout(() => setRunningCard(null), 2000);
+      },
+    },
+    {
+      id: "secondary",
+      title: "Secondary Screening",
+      description: "Run secondary screening on Excel",
+      onStart: () => {
+        setRunningCard("secondary");
+        setOpenSecondary(true);
+      },
+    },
+  ];
 
-    const exportRows = rows.map(({ id, ...rest }) => rest);
-    const worksheet = XLSX.utils.json_to_sheet(exportRows);
-    const workbook = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Secondary Screening");
-    XLSX.writeFile(workbook, "Secondary-Screening-Results.xlsx");
-  };
-
-  // -------------------------------
   // UI
-  // -------------------------------
+
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
@@ -92,18 +136,51 @@ export default function SecondaryPage() {
           Secondary Screening
         </Typography>
 
-        <Typography variant="subtitle1" sx={{ mb: 2 }}>
+        <Typography sx={{ mb: 4 }}>
           Project: {project?.title} (ID: {id})
         </Typography>
 
-        <Button variant="contained" onClick={() => setOpen(true)}>
-          Import Excel & Start Screening
-        </Button>
+        {/* ACTION CARDS */}
+        <Grid
+          container
+          spacing={4}
+          justifyContent="center"
+        >
+          {actionCards.map((card) => (
+            <Grid item key={card.id}>
+              <ActionCard
+                title={card.title}
+                description={card.description}
+                running={runningCard === card.id}
+                onStart={card.onStart}
+              />
+            </Grid>
+          ))}
+        </Grid>
 
-        {/* Popup */}
+        <PdfDownloadPopup
+          open={openPdfDownload}
+          onClose={() => {
+            setOpenPdfDownload(false);
+            setRunningCard(null);
+          }}
+          excelFile={excelFile}
+          onExcelUpload={handleExcelUpload}
+          onSearch={() => {
+            // connect API later
+            setTimeout(() => {
+              setRunningCard(null);
+              setOpenPdfDownload(false);
+            }, 1500);
+          }}
+        />
+
         <SecondaryPopup
-          open={open}
-          onClose={() => setOpen(false)}
+          open={openSecondary}
+          onClose={() => {
+            setOpenSecondary(false);
+            setRunningCard(null);
+          }}
           excelFile={excelFile}
           onExcelUpload={handleExcelUpload}
           ifuFile={ifuFile}
@@ -112,31 +189,18 @@ export default function SecondaryPage() {
           setInclusionCriteria={setInclusionCriteria}
           exclusionCriteria={exclusionCriteria}
           setExclusionCriteria={setExclusionCriteria}
-          onSearch={handleSearch}
+          onSearch={handleSecondarySearch}
         />
 
-        {/* Results */}
+        {/* RESULTS */}
         {rows.length > 0 && (
           <>
-            <Typography variant="h5" sx={{ mt: 4 }}>
+            <Typography variant="h5" sx={{ mt: 5 }}>
               Secondary Screening Results
             </Typography>
 
-            <Button
-              variant="outlined"
-              sx={{ mt: 2, mb: 2 }}
-              onClick={downloadResults}
-            >
-              Download Results
-            </Button>
-
-            <Box sx={{ height: 500, width: "100%" }}>
-              <DataGrid
-                rows={rows}
-                columns={columns}
-                pageSize={25}
-                rowsPerPageOptions={[25, 50, 100]}
-              />
+            <Box sx={{ height: 500, mt: 2 }}>
+              <DataGrid rows={rows} columns={columns} />
             </Box>
           </>
         )}

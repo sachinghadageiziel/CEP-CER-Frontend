@@ -40,9 +40,9 @@ export default function LiteraturePage() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // --------------------------------
+
   // Load existing data (on page load)
-  // --------------------------------
+
   useEffect(() => {
     fetch(
       `http://localhost:5000/api/literature/existing?project_id=${PROJECT_ID}`
@@ -68,7 +68,6 @@ export default function LiteraturePage() {
       .catch(() => {});
   }, [PROJECT_ID]);
 
-  // --------------------------------
   const handleUpload = (e) => setFile(e.target.files[0]);
 
 
@@ -134,7 +133,6 @@ export default function LiteraturePage() {
     }
   };
 
-  // --------------------------------
   const downloadExcel = () => {
     if (!excelBlob) return;
 
@@ -151,7 +149,7 @@ export default function LiteraturePage() {
     link.click();
   };
 
-  // --------------------------------
+
   return (
     <Layout>
       <Box sx={{ p: 3 }}>

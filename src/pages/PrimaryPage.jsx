@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { useParams } from "react-router-dom";
-import { Box, Typography, Button } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Button,
+  LinearProgress,
+} from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import Layout from "../Layout/Layout";
 import PrimarySearchPopup from "../components/PrimaryPopup";
@@ -15,7 +20,7 @@ export default function PrimarySearchPage() {
   const [excelFile, setExcelFile] = useState(null);
   const [ifuFile, setIfuFile] = useState(null);
 
-  // Criteria (kept for future use)
+  // Criteria (future)
   const [inclusionCriteria, setInclusionCriteria] = useState("");
   const [exclusionCriteria, setExclusionCriteria] = useState("");
 
@@ -24,18 +29,32 @@ export default function PrimarySearchPage() {
   const [columns, setColumns] = useState([]);
   const [excelBlob, setExcelBlob] = useState(null);
 
-  // Upload handlers
+  //  Progress UI
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState(0);
+
   const handleExcelUpload = (e) => setExcelFile(e.target.files[0]);
   const handleIfuUpload = (e) => setIfuFile(e.target.files[0]);
 
-  //   REAL API CALL
+   
   const handleSearch = async () => {
     if (!excelFile || !ifuFile) return;
 
     const form = new FormData();
     form.append("project_id", PROJECT_ID);
-    form.append("all_merged", excelFile); 
-    form.append("ifu_pdf", ifuFile);      
+    form.append("all_merged", excelFile);
+    form.append("ifu_pdf", ifuFile);
+
+    setRunning(true);
+    setProgress(5);
+    setOpen(false);
+
+    //  Smooth fake progress (same pattern as Literature)
+    let fake = 5;
+    const timer = setInterval(() => {
+      fake += Math.random() * 10;
+      if (fake < 90) setProgress(Math.floor(fake));
+    }, 900);
 
     try {
       const res = await fetch("http://localhost:5000/api/primary/run", {
@@ -44,19 +63,15 @@ export default function PrimarySearchPage() {
       });
 
       const data = await res.json();
-      if (!data.excelFile) return;
+      clearInterval(timer);
+      setProgress(100);
 
-      setExcelBlob(data.excelFile);
-
-      // Decode returned Excel → DataGrid
+      // Decode Excel
       const binary = atob(data.excelFile);
       const bytes = new Uint8Array([...binary].map(c => c.charCodeAt(0)));
       const workbook = XLSX.read(bytes, { type: "array" });
-
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(sheet);
-
-      if (!jsonData.length) return;
 
       setColumns(
         Object.keys(jsonData[0]).map((key) => ({
@@ -67,14 +82,15 @@ export default function PrimarySearchPage() {
       );
 
       setMasterData(
-        jsonData.map((row, i) => ({
-          id: i + 1,
-          ...row,
-        }))
+        jsonData.map((row, i) => ({ id: i + 1, ...row }))
       );
 
-      setOpen(false);
+      setExcelBlob(data.excelFile);
+      setTimeout(() => setRunning(false), 600);
+
     } catch (err) {
+      clearInterval(timer);
+      setRunning(false);
       alert("Primary screening failed");
       console.error(err);
     }
@@ -99,15 +115,26 @@ export default function PrimarySearchPage() {
   return (
     <Layout>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>
+        <Typography variant="h4">
           Primary Search – {PROJECT_ID}
         </Typography>
 
-        <Button variant="contained" onClick={() => setOpen(true)}>
+        <Button
+          variant="contained"
+          sx={{ mt: 2 }}
+          disabled={running}
+          onClick={() => setOpen(true)}
+        >
           Import Excel
         </Button>
 
-        {/* Popup (UNCHANGED UI) */}
+        {running && (
+          <Box sx={{ mt: 3 }}>
+            <Typography>{progress}% Processing…</Typography>
+            <LinearProgress variant="determinate" value={progress} />
+          </Box>
+        )}
+
         <PrimarySearchPopup
           open={open}
           onClose={() => setOpen(false)}
@@ -120,25 +147,25 @@ export default function PrimarySearchPage() {
           exclusionCriteria={exclusionCriteria}
           setExclusionCriteria={setExclusionCriteria}
           onSearch={handleSearch}
+          running={running}
+          progress={progress}
         />
 
-        {/* Results */}
         {masterData.length > 0 && (
           <>
-            <Typography variant="h5" sx={{ mt: 4 }}>
-              Primary Search Results
-            </Typography>
-
-            <Button sx={{ mt: 2, mb: 2 }} onClick={downloadExcel}>
+            <Button sx={{ mt: 2 }} onClick={downloadExcel}>
               Download Results
             </Button>
 
-            <Box sx={{ height: 500 }}>
+            <Box sx={{ height: 500, mt: 2 }}>
               <DataGrid rows={masterData} columns={columns} />
             </Box>
+
+
+            
           </>
         )}
-      </Box>Sure
+      </Box>
     </Layout>
   );
 }

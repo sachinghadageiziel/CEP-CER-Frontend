@@ -34,7 +34,7 @@ export default function Home() {
 
       setCounts({
         total: res.data.projects.length,
-        active: res.data.projects.length, // Update when statuses added
+        active: res.data.projects.length,
         completed: 0,
       });
     } catch (err) {
@@ -45,7 +45,7 @@ export default function Home() {
   const handleOpenDialog = () => setOpenDialog(true);
   const handleCloseDialog = () => setOpenDialog(false);
 
-  // 🔵 Save project → calls backend API  
+  //  Save project → calls backend API  
   const handleSaveProject = async (data) => {
   try {
     const formData = new FormData();
