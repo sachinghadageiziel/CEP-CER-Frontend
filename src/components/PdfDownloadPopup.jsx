@@ -27,52 +27,67 @@ export default function PdfDownloadPopup({
     <Modal open={open} onClose={onClose}>
       <Card
         sx={{
-          width: { xs: "92%", sm: 480 },
+          width: { xs: "94%", sm: 520 },
           mx: "auto",
-          mt: { xs: "10vh", sm: "12vh" },
+          mt: { xs: "8vh", sm: "10vh" },
           p: 3,
           borderRadius: 2,
-          boxShadow: "0 16px 50px rgba(0,0,0,0.25)",
-          animation: "fadeInScale 0.35s ease",
+          boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
           position: "relative",
+          animation: "fadeInScale 0.3s ease-out",
 
           "@keyframes fadeInScale": {
-            from: {
-              opacity: 0,
-              transform: "scale(0.95)",
-            },
-            to: {
-              opacity: 1,
-              transform: "scale(1)",
-            },
+            from: { opacity: 0, transform: "scale(0.96)" },
+            to: { opacity: 1, transform: "scale(1)" },
           },
         }}
       >
-        {/* 🔝 HEADER */}
+        {/* ───────── HEADER ───────── */}
         <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            mb: 2,
-          }}
+          display="flex"
+          alignItems="center"
+          justifyContent="space-between"
+          mb={1}
         >
-          <IconButton onClick={onClose}>
+          <IconButton onClick={onClose} size="small">
             <ArrowBackIcon />
           </IconButton>
 
           <Typography variant="h6" fontWeight={600}>
-            PDF Download
+            Download PDFs
           </Typography>
 
-          <IconButton onClick={onClose}>
+          <IconButton onClick={onClose} size="small">
             <CloseIcon />
           </IconButton>
         </Box>
 
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          align="center"
+          mb={2}
+        >
+          Upload a list of PMIDs to automatically download available PDFs.
+        </Typography>
+
         <Divider sx={{ mb: 3 }} />
 
-        {/* 📄 EXCEL UPLOAD */}
+        {/* ───────── STEP LABEL ───────── */}
+        <Typography
+          variant="caption"
+          sx={{
+            display: "block",
+            mb: 1,
+            color: "primary.main",
+            fontWeight: 600,
+            textAlign: "center",
+          }}
+        >
+          Step 1 of 2
+        </Typography>
+
+        {/* ───────── FILE UPLOAD ───────── */}
         <Button
           variant="outlined"
           component="label"
@@ -80,53 +95,73 @@ export default function PdfDownloadPopup({
           disabled={running}
           startIcon={<CloudUploadIcon />}
           sx={{
-            height: 46,
+            height: 48,
             borderRadius: 1,
             textTransform: "none",
             fontWeight: 500,
           }}
         >
-          Import Excel
+          Upload PMID Excel (.xlsx)
           <input hidden type="file" onChange={onExcelUpload} />
         </Button>
+
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          display="block"
+          mt={1}
+          textAlign="center"
+        >
+          Excel should contain a column named <b>PMID</b>
+        </Typography>
 
         {excelFile && (
           <Typography
             variant="body2"
             sx={{
-              mt: 1.2,
-              color: "text.secondary",
+              mt: 1.5,
+              color: "success.main",
               textAlign: "center",
+              fontWeight: 500,
             }}
           >
-            {excelFile.name}
+            Selected file: {excelFile.name}
           </Typography>
         )}
 
-        {/* ⏳ PROGRESS */}
+        {/* ───────── PROGRESS ───────── */}
         {running && (
-          <Box sx={{ mt: 3 }}>
+          <Box mt={3}>
             <Typography
               variant="body2"
               align="center"
               sx={{ mb: 1 }}
             >
-              Processing… {progress}%
+              Downloading PDFs… {progress}%
             </Typography>
             <LinearProgress
               variant="determinate"
               value={progress}
             />
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+              textAlign="center"
+              mt={1}
+            >
+              This may take a few minutes depending on the number of PMIDs
+            </Typography>
           </Box>
         )}
 
-        {/* 🔘 ACTION */}
+        {/* ───────── ACTION ───────── */}
         <Button
           variant="contained"
           fullWidth
           sx={{
             mt: 4,
-            height: 46,
+            height: 48,
             borderRadius: 1,
             fontWeight: 600,
             textTransform: "none",
@@ -134,7 +169,7 @@ export default function PdfDownloadPopup({
           disabled={!excelFile || running}
           onClick={onSearch}
         >
-          {running ? "Processing…" : "Start"}
+          {running ? "Downloading PDFs…" : "Start Download"}
         </Button>
       </Card>
     </Modal>

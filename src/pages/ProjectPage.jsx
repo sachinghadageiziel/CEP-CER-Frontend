@@ -3,14 +3,13 @@ import { useParams, useLocation, useNavigate } from "react-router-dom";
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Button,
-  Divider,
 } from "@mui/material";
 import Layout from "../Layout/Layout";
+import BreadcrumbsBar from "../components/BreadcrumbsBar";
 
-// 🔹 Images
+// Images (keep same)
 import literatureImg from "../assets/literature.png";
 import primaryImg from "../assets/Primary.png";
 import secondaryImg from "../assets/secondary.png";
@@ -21,7 +20,6 @@ export default function ProjectPage() {
   const navigate = useNavigate();
 
   const project = location.state?.project;
-  const itemsProcessed = 0;
 
   const steps = [
     {
@@ -29,108 +27,144 @@ export default function ProjectPage() {
       subtitle: "Upload keywords and search across multiple databases",
       path: "literature",
       image: literatureImg,
+      bg: "#e3f2fd",
+      btn: "linear-gradient(90deg,#2563eb,#14b8a6)",
     },
     {
       title: "Primary Screening",
       subtitle: "Review and screen literature based on inclusion criteria",
       path: "primary",
       image: primaryImg,
+      bg: "#fff8e1",
+      btn: "#eab308",
     },
     {
       title: "Secondary Screening",
       subtitle: "Detailed evaluation and quality assessment of selected papers",
       path: "secondary",
       image: secondaryImg,
+      bg: "#e8f5e9",
+      btn: "#22c55e",
     },
   ];
 
   return (
     <Layout>
-      <Box sx={{ p: { xs: 2, md: 4 }, width: "100%" }}>
-        {/* Header */}
-        <Typography variant="h4" gutterBottom>
-          {project?.title} (Project ID: {id})
-        </Typography>
+      <Box sx={{ p: { xs: 2, md: 4 } }}>
 
-        <Typography variant="body1" sx={{ mb: 4 }}>
+        {/* Breadcrumb */}
+        <BreadcrumbsBar
+          items={[
+            { label: "Home", to: "/" },
+            { label: "Project" },
+          ]}
+        />
+
+        {/* Header */}
+        <Typography variant="h4" fontWeight={700}>
+          {project?.title}
+        </Typography>
+        <Typography color="text.secondary" sx={{ mb: 4 }}>
           Owner: {project?.owner} • Duration: {project?.duration}
         </Typography>
 
         {/* Cards */}
         <Box
           sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "1fr 1fr",
+              md: "1fr 1fr 1fr",
+            },
             gap: 3,
-            maxWidth: 1400,
-            mx: "auto",
           }}
         >
-          {steps.map((step, index) => (
+          {steps.map((step) => (
             <Card
-              key={index}
+              key={step.path}
               sx={{
-                flex: {
-                  xs: "1 1 100%",
-                  sm: "1 1 45%",
-                  md: "1 1 30%",
-                },
-                minHeight: 380,
+                borderRadius: 3,
+                p: 3,
+                height: 360,
                 display: "flex",
                 flexDirection: "column",
                 justifyContent: "space-between",
-                borderRadius: 3,
-                overflow: "hidden",
-                boxShadow: "0px 6px 18px rgba(0,0,0,0.15)",
-                transition: "all 0.25s ease",
+                boxShadow: "0 6px 20px rgba(0,0,0,0.08)",
+                transition: "transform .18s ease, box-shadow .18s ease",
                 "&:hover": {
-                  transform: "translateY(-6px)",
-                  boxShadow: "0px 14px 40px rgba(0,0,0,0.2)",
+                  transform: "translateY(-4px)",
+                  boxShadow: "0 14px 36px rgba(0,0,0,0.15)",
                 },
               }}
             >
-              {/* 🖼 Image */}
+              {/* Icon */}
               <Box
                 sx={{
-                  height: 160,
-                  background: `url(${step.image}) center / cover no-repeat`,
+                  width: 56,
+                  height: 56,
+                  borderRadius: 2,
+                  background: step.bg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  mb: 2,
                 }}
-              />
+              >
+                <img src={step.image} alt={step.title} width={28} />
+              </Box>
 
-              <CardContent sx={{ flexGrow: 1 }}>
-                <Typography variant="h6" gutterBottom>
+              {/* Content */}
+              <Box>
+                <Typography variant="h6" fontWeight={600}>
                   {step.title}
                 </Typography>
-
                 <Typography
                   variant="body2"
                   color="text.secondary"
-                  sx={{ mb: 2 }}
+                  sx={{ mt: 1 }}
                 >
                   {step.subtitle}
                 </Typography>
 
-                <Divider sx={{ my: 2 }} />
-
-                <Typography variant="body2" fontWeight="bold">
-                  Items Processed: {itemsProcessed}
-                </Typography>
-              </CardContent>
-
-              <Box sx={{ p: 2 }}>
-                <Button
-                  variant="contained"
-                  fullWidth
-                  onClick={() =>
-                    navigate(`/project/${id}/${step.path}`, {
-                      state: { project },
-                    })
-                  }
+                {/* Items processed box */}
+                <Box
+                  sx={{
+                    mt: 3,
+                    p: 2,
+                    borderRadius: 2,
+                    background: step.bg,
+                  }}
                 >
-                  Start
-                </Button>
+                  <Typography variant="caption" color="text.secondary">
+                    Items Processed
+                  </Typography>
+                  <Typography variant="h5" fontWeight={700}>
+                    0
+                  </Typography>
+                </Box>
               </Box>
+
+              {/* Start Button */}
+              <Button
+                fullWidth
+                sx={{
+                  mt: 3,
+                  color: "#fff",
+                  background: step.btn,
+                  borderRadius: 2,
+                  fontWeight: 600,
+                  py: 1.2,
+                  "&:hover": { opacity: 0.95 },
+                }}
+                onClick={() =>
+                  navigate(`/project/${id}/${step.path}`, {
+                    state: { project },
+                  })
+                }
+              >
+                Start
+              </Button>
             </Card>
           ))}
         </Box>

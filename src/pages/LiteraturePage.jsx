@@ -5,10 +5,14 @@ import {
   Typography,
   Button,
   LinearProgress,
+  Card,
+  Stack,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
+import { motion } from "framer-motion";
 import Layout from "../Layout/Layout";
 import LiteraturePopup from "../components/LiteraturePopup";
+import BreadcrumbsBar from "../components/BreadcrumbsBar";
 
 export default function LiteraturePage() {
   const { id: PROJECT_ID } = useParams();
@@ -38,22 +42,23 @@ export default function LiteraturePage() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
 
-
-  // Load existing data
-
+  // -------------------------
+  // LOAD EXISTING DATA
+  // -------------------------
   useEffect(() => {
     fetch(
       `http://localhost:5000/api/literature/existing?project_id=${PROJECT_ID}`
     )
       .then((r) => r.json())
       .then((data) => {
-        if (!data.masterSheet) return;
+        if (!data?.masterSheet?.length) return;
 
         setColumns(
           Object.keys(data.masterSheet[0]).map((key) => ({
             field: key,
             headerName: key,
-            width: 200,
+            flex: 1,
+            minWidth: 160,
           }))
         );
 
@@ -68,7 +73,9 @@ export default function LiteraturePage() {
 
   const handleUpload = (e) => setFile(e.target.files[0]);
 
-
+  // -------------------------
+  // SEARCH
+  // -------------------------
   const handleSearch = async () => {
     if (!file) return;
 
@@ -86,7 +93,6 @@ export default function LiteraturePage() {
     setProgress(5);
     setOpen(false);
 
-   
     let fake = 5;
     const timer = setInterval(() => {
       fake += Math.random() * 8;
@@ -94,7 +100,6 @@ export default function LiteraturePage() {
     }, 800);
 
     try {
-      
       await fetch("http://localhost:5000/api/literature/run", {
         method: "POST",
         body: form,
@@ -112,7 +117,8 @@ export default function LiteraturePage() {
         Object.keys(data.masterSheet[0]).map((key) => ({
           field: key,
           headerName: key,
-          width: 200,
+          flex: 1,
+          minWidth: 160,
         }))
       );
 
@@ -121,9 +127,8 @@ export default function LiteraturePage() {
       );
 
       setExcelBlob(data.excelFile);
-
       setTimeout(() => setRunning(false), 600);
-    } catch (err) {
+    } catch {
       clearInterval(timer);
       setRunning(false);
       alert("Literature search failed");
@@ -146,28 +151,47 @@ export default function LiteraturePage() {
     link.click();
   };
 
-
+  // -------------------------
+  // UI
+  // -------------------------
   return (
     <Layout>
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h4">
-          Literature Search – {PROJECT_ID}
-        </Typography>
+      <Box sx={{ p: 3, background: "#f8fafc", minHeight: "100vh" }}>
+        <BreadcrumbsBar
+          items={[
+            { label: "Home", to: "/" },
+            { label: "Project", to: `/project/${PROJECT_ID}` },
+            { label: "Literature Search" },
+          ]}
+        />
 
-        <Button
-          variant="contained"
-          sx={{ mt: 2 }}
-          disabled={running}
-          onClick={() => setOpen(true)}
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          justifyContent="space-between"
+          alignItems={{ xs: "flex-start", sm: "center" }}
+          spacing={2}
+          sx={{ mb: 3 }}
         >
-          Upload Keywords & Start Search
-        </Button>
+          <Typography variant="h4" fontWeight={700}>
+            Literature Search — {PROJECT_ID}
+          </Typography>
+
+          <Button
+            variant="contained"
+            disabled={running}
+            onClick={() => setOpen(true)}
+          >
+            Upload Keywords & Start Search
+          </Button>
+        </Stack>
 
         {running && (
-          <Box sx={{ mt: 3 }}>
-            <Typography>{progress}% Processing…</Typography>
+          <Card sx={{ p: 2, mb: 3 }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Processing literature…
+            </Typography>
             <LinearProgress variant="determinate" value={progress} />
-          </Box>
+          </Card>
         )}
 
         <LiteraturePopup
@@ -186,18 +210,29 @@ export default function LiteraturePage() {
           databases={databases}
           setDatabases={setDatabases}
           onSearch={handleSearch}
+          running={running}
+          progress={progress}
         />
 
         {masterData.length > 0 && (
-          <>
-            <Button sx={{ mt: 2 }} onClick={downloadExcel}>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+          >
+            <Button sx={{ mb: 2 }} onClick={downloadExcel}>
               Download Excel
             </Button>
 
-            <Box sx={{ height: 500, mt: 2 }}>
-              <DataGrid rows={masterData} columns={columns} />
-            </Box>
-          </>
+            <Card sx={{ height: 520 }}>
+              <DataGrid
+                rows={masterData}
+                columns={columns}
+                disableRowSelectionOnClick
+                pageSizeOptions={[10, 25, 50]}
+              />
+            </Card>
+          </motion.div>
         )}
       </Box>
     </Layout>

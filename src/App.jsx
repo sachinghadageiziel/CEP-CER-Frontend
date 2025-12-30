@@ -1,11 +1,11 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import ProjectPage from "./pages/ProjectPage";
-
-// Pages for each step
 import LiteraturePage from "./pages/LiteraturePage";
-import PrimaryPage from "./pages/PrimaryPage";
+import PrimarySearchPage from "./pages/PrimaryPage";
+import PrimaryArticlePage from "./pages/PrimaryArticlePage";
 import SecondaryPage from "./pages/SecondaryPage";
+import SecondaryResultsPage from "./pages/SecondaryResultsPage";
 
 function App() {
   return (
@@ -13,13 +13,24 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
 
-        {/* Project Overview */}
         <Route path="/project/:id" element={<ProjectPage />} />
-
-        {/* Step Pages */}
         <Route path="/project/:id/literature" element={<LiteraturePage />} />
-        <Route path="/project/:id/primary" element={<PrimaryPage />} />
+
+        {/* PRIMARY */}
+        <Route path="/project/:id/primary" element={<PrimarySearchPage />} />
+        <Route
+          path="/project/:id/primary/article/:pmid"
+          element={<PrimaryArticlePage />}
+        />
+
+        {/* SECONDARY */}
         <Route path="/project/:id/secondary" element={<SecondaryPage />} />
+        <Route path="/projects/:id/secondary" element={<SecondaryPage />} />
+<Route
+  path="/projects/:id/secondary/results"
+  element={<SecondaryResultsPage />}
+/>
+
       </Routes>
     </BrowserRouter>
   );

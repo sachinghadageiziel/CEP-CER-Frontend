@@ -4,55 +4,101 @@ import {
   Modal,
   Typography,
   Button,
-  TextField,
   Divider,
+  LinearProgress,
+  IconButton,
+  Box,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 
 export default function SecondaryPopup({
   open,
   onClose,
   excelFile,
-  onExcelUpload,
   ifuFile,
+  onExcelUpload,
   onIfuUpload,
-  inclusionCriteria,
-  setInclusionCriteria,
-  exclusionCriteria,
-  setExclusionCriteria,
-  onSearch,
+  onRun,
+  loading,
 }) {
   return (
     <Modal open={open} onClose={onClose}>
       <Card
         sx={{
-          width: { xs: "90%", sm: 500 },
-          maxHeight: "90vh",
-          overflowY: "auto",
+          width: { xs: "92%", sm: 520 },
           mx: "auto",
-          mt: { xs: "5vh", sm: "8vh" },
+          mt: "8vh",
           p: 3,
-          borderRadius: 4,
-          boxShadow: 8,
+          borderRadius: 2,
+          position: "relative",
         }}
       >
-        <Typography variant="h6" gutterBottom>
-          Upload Inputs
+        {/* ---------- HEADER ---------- */}
+        <Box
+          display="flex"
+          justifyContent="space-between"
+          alignItems="center"
+          mb={1}
+        >
+          <Typography variant="h6" fontWeight={600}>
+            Run Secondary Screening
+          </Typography>
+
+          <IconButton onClick={onClose}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+
+        <Typography variant="body2" color="text.secondary" mb={2}>
+          Please upload the required files below to start the secondary
+          screening process.
         </Typography>
 
-        {/* Excel */}
-        <Button variant="outlined" component="label">
-          Upload Excel
+        <Divider sx={{ mb: 3 }} />
+
+        {/* ---------- STEP 1 ---------- */}
+        <Typography fontWeight={600} mb={0.5}>
+          Step 1: Upload  Excel
+        </Typography>
+
+        <Typography variant="body2" color="text.secondary" mb={1.5}>
+          Upload the PMID File.
+        </Typography>
+
+        <Button
+          variant="outlined"
+          component="label"
+          fullWidth
+          sx={{ mb: 1 }}
+        >
+          Upload PMID.xlsx
           <input hidden type="file" onChange={onExcelUpload} />
         </Button>
+
         {excelFile && (
-          <Typography sx={{ mt: 1 }}>{excelFile.name}</Typography>
+          <Typography variant="caption" color="success.main">
+            Selected file: {excelFile.name}
+          </Typography>
         )}
 
-        <Divider sx={{ my: 2 }} />
+        <Divider sx={{ my: 3 }} />
 
-        {/* IFU */}
-        <Button variant="outlined" component="label">
-          Upload IFU (PDF)
+        {/* ---------- STEP 2 ---------- */}
+        <Typography fontWeight={600} mb={0.5}>
+          Step 2: Upload IFU PDF
+        </Typography>
+
+        <Typography variant="body2" color="text.secondary" mb={1.5}>
+          Upload the <b>Instructions For Use (IFU)</b> 
+        </Typography>
+
+        <Button
+          variant="outlined"
+          component="label"
+          fullWidth
+          sx={{ mb: 1 }}
+        >
+          Upload IFU.pdf
           <input
             hidden
             type="file"
@@ -60,37 +106,32 @@ export default function SecondaryPopup({
             onChange={onIfuUpload}
           />
         </Button>
-        {ifuFile && <Typography sx={{ mt: 1 }}>{ifuFile.name}</Typography>}
 
-        <Divider sx={{ my: 2 }} />
+        {ifuFile && (
+          <Typography variant="caption" color="success.main">
+            Selected file: {ifuFile.name}
+          </Typography>
+        )}
 
-        {/* Criteria */}
-        <TextField
-          label="Inclusion Criteria"
-          multiline
-          rows={4}
-          fullWidth
-          value={inclusionCriteria}
-          onChange={(e) => setInclusionCriteria(e.target.value)}
-        />
+        {/* ---------- PROGRESS ---------- */}
+        {loading && (
+          <Box mt={3}>
+            <Typography variant="body2" mb={1}>
+              Running secondary screening… Please wait.
+            </Typography>
+            <LinearProgress />
+          </Box>
+        )}
 
-        <TextField
-          label="Exclusion Criteria"
-          multiline
-          rows={4}
-          fullWidth
-          sx={{ mt: 2 }}
-          value={exclusionCriteria}
-          onChange={(e) => setExclusionCriteria(e.target.value)}
-        />
-
+        {/* ---------- ACTION ---------- */}
         <Button
           variant="contained"
+          fullWidth
           sx={{ mt: 3 }}
-          disabled={!excelFile}
-          onClick={onSearch}
+          disabled={!excelFile || !ifuFile || loading}
+          onClick={onRun}
         >
-          Search
+          Start Secondary Screening
         </Button>
       </Card>
     </Modal>

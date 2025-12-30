@@ -1,197 +1,152 @@
-import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import {
-  Box,
-  Typography,
-  Button,
-  LinearProgress,
-} from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
+import React, { useEffect, useState, useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import Layout from "../Layout/Layout";
+import BreadcrumbsBar from "../components/BreadcrumbsBar";
+import ResultTable from "../components/ResultTable";
+import StatCard from "../components/StatCard";
 import PrimarySearchPopup from "../components/PrimaryPopup";
-import * as XLSX from "xlsx";
+
+import { FileText, CheckCircle, XCircle } from "lucide-react";
 
 export default function PrimarySearchPage() {
   const { id: PROJECT_ID } = useParams();
+  const navigate = useNavigate();
 
+  const [rows, setRows] = useState([]);
   const [open, setOpen] = useState(false);
 
-  // Uploads
-  const [excelFile, setExcelFile] = useState(null);
-  const [ifuFile, setIfuFile] = useState(null);
+  // Pagination (server-safe)
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
 
-  // Criteria (future use)
-  const [inclusionCriteria, setInclusionCriteria] = useState("");
-  const [exclusionCriteria, setExclusionCriteria] = useState("");
-
-  // Results
-  const [masterData, setMasterData] = useState([]);
-  const [columns, setColumns] = useState([]);
-  const [excelBlob, setExcelBlob] = useState(null);
-
-  // Progress UI
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
-
-  
-  // LOAD EXISTING DATA 
+  // -------------------------------
+  // LOAD DATA
+  // -------------------------------
   useEffect(() => {
     fetch(
       `http://localhost:5000/api/primary/existing?project_id=${PROJECT_ID}`
     )
       .then((r) => r.json())
       .then((data) => {
-        if (!data.masterSheet) return;
-
-        setColumns(
-          Object.keys(data.masterSheet[0]).map((key) => ({
-            field: key,
-            headerName: key,
-            width: 200,
-          }))
-        );
-
-        setMasterData(
-          data.masterSheet.map((row, i) => ({ id: i + 1, ...row }))
-        );
-
-        setExcelBlob(data.excelFile);
-      })
-      .catch(() => {});
+        if (data?.masterSheet) {
+          setRows(
+            data.masterSheet.map((r, i) => ({
+              id: i + 1,
+              ...r,
+            }))
+          );
+        }
+      });
   }, [PROJECT_ID]);
 
- 
-  const handleExcelUpload = (e) => setExcelFile(e.target.files[0]);
-  const handleIfuUpload = (e) => setIfuFile(e.target.files[0]);
+  // -------------------------------
+  // STATS
+  // -------------------------------
+  const included = useMemo(
+    () => rows.filter((r) => r.Decision === "Include").length,
+    [rows]
+  );
 
- 
-  // PRIMARY SEARCH
+  const excluded = useMemo(
+    () => rows.filter((r) => r.Decision === "Exclude").length,
+    [rows]
+  );
 
-  const handleSearch = async () => {
-    if (!excelFile || !ifuFile) return;
+  // -------------------------------
+  // PAGINATION (client for now)
+  // -------------------------------
+  const pagedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return rows.slice(start, start + PAGE_SIZE);
+  }, [rows, page]);
 
-    const form = new FormData();
-    form.append("project_id", PROJECT_ID);
-    form.append("all_merged", excelFile);
-    form.append("ifu_pdf", ifuFile);
-
-    setRunning(true);
-    setProgress(5);
-    setOpen(false);
-
-    
-    let fake = 5;
-    const timer = setInterval(() => {
-      fake += Math.random() * 10;
-      if (fake < 90) setProgress(Math.floor(fake));
-    }, 900);
-
-    try {
-      await fetch("http://localhost:5000/api/primary/run", {
-        method: "POST",
-        body: form,
-      });
-
-      // Reload from existing endpoint
-      const res = await fetch(
-        `http://localhost:5000/api/primary/existing?project_id=${PROJECT_ID}`
-      );
-      const data = await res.json();
-
-      clearInterval(timer);
-      setProgress(100);
-
-      setColumns(
-        Object.keys(data.masterSheet[0]).map((key) => ({
-          field: key,
-          headerName: key,
-          width: 200,
-        }))
-      );
-
-      setMasterData(
-        data.masterSheet.map((row, i) => ({ id: i + 1, ...row }))
-      );
-
-      setExcelBlob(data.excelFile);
-      setTimeout(() => setRunning(false), 600);
-
-    } catch (err) {
-      clearInterval(timer);
-      setRunning(false);
-      alert("Primary screening failed");
-    }
-  };
-
-
-  const downloadExcel = () => {
-    if (!excelBlob) return;
-
-    const binary = atob(excelBlob);
-    const bytes = new Uint8Array([...binary].map((c) => c.charCodeAt(0)));
-
-    const blob = new Blob([bytes], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "Primary-Search-Results.xlsx";
-    link.click();
-  };
-
- 
   return (
     <Layout>
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h4">
-          Primary Search – {PROJECT_ID}
-        </Typography>
-
-        <Button
-          variant="contained"
-          sx={{ mt: 2 }}
-          disabled={running}
-          onClick={() => setOpen(true)}
-        >
-          Import Excel
-        </Button>
-
-        {running && (
-          <Box sx={{ mt: 3 }}>
-            <Typography>{progress}% Processing…</Typography>
-            <LinearProgress variant="determinate" value={progress} />
-          </Box>
-        )}
-
-        <PrimarySearchPopup
-          open={open}
-          onClose={() => setOpen(false)}
-          excelFile={excelFile}
-          onExcelUpload={handleExcelUpload}
-          ifuFile={ifuFile}
-          onIfuUpload={handleIfuUpload}
-          inclusionCriteria={inclusionCriteria}
-          setInclusionCriteria={setInclusionCriteria}
-          exclusionCriteria={exclusionCriteria}
-          setExclusionCriteria={setExclusionCriteria}
-          onSearch={handleSearch}
-          running={running}
-          progress={progress}
+      <div className="p-6 space-y-6">
+        <BreadcrumbsBar
+          items={[
+            { label: "Home", to: "/" },
+            { label: "Project", to: `/project/${PROJECT_ID}` },
+            { label: "Primary Screening" },
+          ]}
         />
 
-        {masterData.length > 0 && (
-          <>
-            <Button sx={{ mt: 2 }} onClick={downloadExcel}>
-              Download Results
-            </Button>
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-semibold">
+            Primary Screening Results
+          </h1>
 
-            <Box sx={{ height: 500, mt: 2 }}>
-              <DataGrid rows={masterData} columns={columns} />
-            </Box>
-          </>
+          <button
+            onClick={() => setOpen(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg
+                       hover:bg-blue-700 transition"
+          >
+            Import Excel
+          </button>
+        </div>
+
+        {/* STATS */}
+        <div className="flex flex-wrap gap-4">
+          <StatCard
+            title="Reviewed"
+            value={rows.length}
+            icon={FileText}
+            color="blue"
+          />
+          <StatCard
+            title="Included"
+            value={included}
+            icon={CheckCircle}
+            color="green"
+          />
+          <StatCard
+            title="Excluded"
+            value={excluded}
+            icon={XCircle}
+            color="red"
+          />
+        </div>
+
+        {/* TABLE */}
+        <ResultTable
+          rows={pagedRows}
+          onDecisionChange={(pmid, next) => {
+            // Optimistic update
+            setRows((prev) =>
+              prev.map((r) =>
+                r.PMID === pmid ? { ...r, Decision: next } : r
+              )
+            );
+          }}
+          onRowClick={(row) =>
+            navigate(
+              `/project/${PROJECT_ID}/primary/article/${row.PMID}`
+            )
+          }
+        />
+
+        {/* PAGINATION */}
+        {rows.length > PAGE_SIZE && (
+          <div className="flex justify-end gap-2 pt-4">
+            <button
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+              className="px-3 py-1 border rounded disabled:opacity-40"
+            >
+              Prev
+            </button>
+            <button
+              disabled={page * PAGE_SIZE >= rows.length}
+              onClick={() => setPage((p) => p + 1)}
+              className="px-3 py-1 border rounded disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
         )}
-      </Box>
+
+        <PrimarySearchPopup open={open} onClose={() => setOpen(false)} />
+      </div>
     </Layout>
   );
 }

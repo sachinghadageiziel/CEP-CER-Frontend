@@ -1,210 +1,348 @@
-import React, { useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
-import {
-  Box,
-  Typography,
-  Grid,
-} from "@mui/material";
-import { DataGrid } from "@mui/x-data-grid";
+import React, { useEffect, useMemo, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { FiUpload, FiEye, FiX } from "react-icons/fi";
+
 import Layout from "../Layout/Layout";
-
-import SecondaryPopup from "../components/SecondaryPopup";
+import BreadcrumbsBar from "../components/BreadcrumbsBar";
 import PdfDownloadPopup from "../components/PdfDownloadPopup";
-import ActionCard from "../components/ActionCard";
+import SecondaryPopup from "../components/SecondaryPopup";
+import DownloadedPdfPopup from "../components/DownloadedPdfPopup";
+import ExtractPdfText from "../components/ExtractPdfText";
 
-import * as XLSX from "xlsx";
+/* -------------------- HELPERS -------------------- */
+const normalizePMID = (pmid) => String(pmid).replace(".0", "");
 
 export default function SecondaryPage() {
-  const { id } = useParams();
-  const location = useLocation();
-  const project = location.state?.project;
+  const { id: projectId } = useParams();
+  const navigate = useNavigate();
 
-    
-  // Popup states
-    
+  /* ---------- STATE ---------- */
+  const [openPdfUpload, setOpenPdfUpload] = useState(false);
   const [openSecondary, setOpenSecondary] = useState(false);
-  const [openPdfDownload, setOpenPdfDownload] = useState(false);
-
-    
-  // Uploads
-    
   const [excelFile, setExcelFile] = useState(null);
   const [ifuFile, setIfuFile] = useState(null);
 
-    
-  // Criteria
-    
-  const [inclusionCriteria, setInclusionCriteria] = useState("");
-  const [exclusionCriteria, setExclusionCriteria] = useState("");
+  const [pdfRows, setPdfRows] = useState([]);
+  const [downloadedPdfs, setDownloadedPdfs] = useState([]);
 
-    
-  // Results
-    
-  const [rows, setRows] = useState([]);
-  const [columns, setColumns] = useState([]);
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [loadingText, setLoadingText] = useState(false);
+  const [loadingSecondary, setLoadingSecondary] = useState(false);
 
-    
-  // Card running state
-    
-  const [runningCard, setRunningCard] = useState(null);
+  const [search, setSearch] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [showToast, setShowToast] = useState(false);
 
-    
-  // Handlers
-    
-  const handleExcelUpload = (e) => setExcelFile(e.target.files[0]);
-  const handleIfuUpload = (e) => setIfuFile(e.target.files[0]);
+  const [activePdfUrl, setActivePdfUrl] = useState(null);
+  const [showPdfList, setShowPdfList] = useState(false);
 
-    
-  // Secondary Search (existing logic)
-    
-  const handleSecondarySearch = () => {
-    if (!excelFile) return;
+  /* ---------- PAGINATION ---------- */
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
 
-    setRunningCard("secondary");
+  /* ---------- LOAD EXISTING ---------- */
+  useEffect(() => {
+    fetch(
+      `http://localhost:5000/api/secondary/pdf-download/existing?project_id=${projectId}`
+    )
+      .then((r) => r.json())
+      .then((d) => d.exists && setPdfRows(d.screening || []));
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const binary = e.target.result;
-      const workbook = XLSX.read(binary, { type: "binary" });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(sheet);
+    loadPdfList();
+  }, [projectId]);
 
-      if (!jsonData.length) return;
-
-      setColumns(
-        Object.keys(jsonData[0]).map((key) => ({
-          field: key,
-          headerName: key,
-          width: 200,
-        }))
-      );
-
-      setRows(
-        jsonData.map((row, i) => ({
-          id: i + 1,
-          ...row,
-        }))
-      );
-
-      setRunningCard(null);
-      setOpenSecondary(false);
-    };
-
-    reader.readAsBinaryString(excelFile);
+  /* ---------- LOAD PDF LIST ---------- */
+  const loadPdfList = async () => {
+    const res = await fetch(
+      `http://localhost:5000/api/secondary/pdf-list?project_id=${projectId}`
+    );
+    const data = await res.json();
+    setDownloadedPdfs(data.pdfs || []);
   };
 
-    
-  // Action Cards (dynamic-ready)
-    
-  const actionCards = [
-    {
-      id: "pdf-download",
-      title: "PDF Download",
-      description: "Download project related PDFs",
-      onStart: () => {
-        setRunningCard("pdf-download");
-        setOpenPdfDownload(true);
-      },
-    },
-    {
-      id: "pdf-text",
-      title: "PDF → Text",
-      description: "Convert PDF documents into text",
-      onStart: () => {
-        setRunningCard("pdf-text");
-        // api hook
-        setTimeout(() => setRunningCard(null), 2000);
-      },
-    },
-    {
-      id: "secondary",
-      title: "Secondary Screening",
-      description: "Run secondary screening on Excel",
-      onStart: () => {
-        setRunningCard("secondary");
-        setOpenSecondary(true);
-      },
-    },
-  ];
+  /* ---------- MAP PMID → FILENAME ---------- */
+  const pdfFilenameMap = useMemo(() => {
+    const map = {};
+    downloadedPdfs.forEach((p) => {
+      map[normalizePMID(p.pmid)] = p.filename;
+    });
+    return map;
+  }, [downloadedPdfs]);
 
-  // UI
+  /* ---------- API ACTIONS ---------- */
+  const runPdfDownload = async () => {
+    setLoadingPdf(true);
 
+    const form = new FormData();
+    form.append("project_id", projectId);
+    form.append("pmid_excel", excelFile);
+
+    await fetch("http://localhost:5000/api/secondary/pdf-download", {
+      method: "POST",
+      body: form,
+    });
+
+    const res = await fetch(
+      `http://localhost:5000/api/secondary/pdf-download/existing?project_id=${projectId}`
+    );
+    const data = await res.json();
+
+    setPdfRows(data.screening || []);
+    loadPdfList();
+    setLoadingPdf(false);
+    setOpenPdfUpload(false);
+  };
+
+  const runPdfToText = async () => {
+    setLoadingText(true);
+    setProgress(0);
+
+    const interval = setInterval(() => {
+      setProgress((p) => (p < 90 ? p + 10 : p));
+    }, 300);
+
+    const form = new FormData();
+    form.append("project_id", projectId);
+
+    await fetch("http://localhost:5000/api/secondary/pdf-to-text", {
+      method: "POST",
+      body: form,
+    });
+
+    clearInterval(interval);
+    setProgress(100);
+    setLoadingText(false);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  const runSecondary = async () => {
+    setLoadingSecondary(true);
+
+    const form = new FormData();
+    form.append("project_id", projectId);
+    form.append("primary_excel", excelFile);
+    form.append("ifu_pdf", ifuFile);
+
+    await fetch(
+      "http://localhost:5000/api/secondary/secondary-runner",
+      { method: "POST", body: form }
+    );
+
+    setLoadingSecondary(false);
+    setOpenSecondary(false);
+    navigate(`/projects/${projectId}/secondary/results`);
+  };
+
+  /* ---------- OPEN PDF ---------- */
+  const openPdf = async (filename) => {
+    const res = await fetch(
+      `http://localhost:5000/api/secondary/open-pdf?project_id=${projectId}&filename=${encodeURIComponent(
+        filename
+      )}`
+    );
+
+    if (!res.ok) {
+      alert("PDF not found on server");
+      return;
+    }
+
+    const blob = await res.blob();
+    setActivePdfUrl(URL.createObjectURL(blob));
+  };
+
+  /* ---------- DERIVED ---------- */
+  const filteredRows = useMemo(
+    () =>
+      pdfRows.filter(
+        (r) =>
+          normalizePMID(r.PMID).includes(search) ||
+          r.Status.toLowerCase().includes(search.toLowerCase())
+      ),
+    [pdfRows, search]
+  );
+
+  const paginatedRows = filteredRows.slice(
+    page * pageSize,
+    page * pageSize + pageSize
+  );
+
+  /* -------------------- UI -------------------- */
   return (
     <Layout>
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          Secondary Screening
-        </Typography>
+      <div className="p-6 space-y-6">
 
-        <Typography sx={{ mb: 4 }}>
-          Project: {project?.title} (ID: {id})
-        </Typography>
+        <BreadcrumbsBar
+          items={[{ label: "Home", to: "/" }, { label: "Secondary Screening" }]}
+        />
 
-        {/* ACTION CARDS */}
-        <Grid
-          container
-          spacing={4}
-          justifyContent="center"
-        >
-          {actionCards.map((card) => (
-            <Grid item key={card.id}>
-              <ActionCard
-                title={card.title}
-                description={card.description}
-                running={runningCard === card.id}
-                onStart={card.onStart}
-              />
-            </Grid>
-          ))}
-        </Grid>
+        {/* HEADER */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-semibold">Secondary Screening</h1>
+            <p className="text-sm text-slate-500">
+              Project ID: {projectId}
+            </p>
+          </div>
+
+          <button
+            onClick={() => setOpenPdfUpload(true)}
+            className="h-10 flex items-center gap-2 bg-blue-600 text-white px-4 rounded-md text-sm hover:bg-blue-700"
+          >
+            <FiUpload /> Upload PMID Excel
+          </button>
+        </div>
+
+        {/* ACTION TOOLBAR */}
+        <div className="bg-white border rounded-md p-4">
+          <div className="grid grid-cols-[260px_auto_auto_auto] gap-3 items-center">
+
+            <input
+              className="h-10 border px-3 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Search PMID / Status"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+
+            <ExtractPdfText
+              onExtract={runPdfToText}
+              loading={loadingText}
+              progress={progress}
+            />
+
+            <button
+              onClick={() => setShowPdfList(true)}
+              className="h-10 border px-4 rounded-md text-sm hover:bg-slate-50"
+            >
+              View Downloaded PDFs
+            </button>
+
+            <button
+              onClick={() => setOpenSecondary(true)}
+              className="h-10 bg-green-600 text-white px-4 rounded-md text-sm hover:bg-green-700"
+            >
+              Run Secondary Screening
+            </button>
+          </div>
+
+          {loadingText && (
+            <div className="mt-3">
+              <div className="w-full bg-slate-200 h-2 rounded overflow-hidden">
+                <motion.div
+                  className="bg-blue-600 h-2"
+                  animate={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="text-xs text-slate-500 mt-1 text-right">
+                {progress}%
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* TABLE */}
+        <div className="bg-white border rounded-md overflow-hidden shadow-sm">
+          <div className="px-4 py-3 font-medium border-b">
+            PDF Availability Status
+          </div>
+
+          <table className="w-full text-sm">
+            <thead className="bg-slate-100">
+              <tr>
+                <th className="px-4 py-2 text-left">PMID</th>
+                <th className="text-center">Status</th>
+                <th className="text-right px-4">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedRows.map((row, i) => {
+                const pmid = normalizePMID(row.PMID);
+                const filename = pdfFilenameMap[pmid];
+
+                return (
+                  <tr
+                    key={`${pmid}-${i}`}
+                    className="border-t hover:bg-slate-50 transition"
+                  >
+                    <td className="px-4 py-2 text-blue-600 font-medium">
+                      {pmid}
+                    </td>
+                    <td className="text-center">{row.Status}</td>
+                    <td className="px-4 py-2 text-right">
+                      {filename ? (
+                        <button
+                          onClick={() => openPdf(filename)}
+                          className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                        >
+                          <FiEye /> View
+                        </button>
+                      ) : (
+                        <span className="text-slate-400 text-sm">
+                          Not available
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <DownloadedPdfPopup
+          open={showPdfList}
+          pdfs={downloadedPdfs}
+          onClose={() => setShowPdfList(false)}
+          onView={openPdf}
+        />
+
+        {/* PDF VIEWER */}
+        <AnimatePresence>
+          {activePdfUrl && (
+            <motion.div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+              <div className="bg-white w-[90%] h-[90%] rounded-md shadow-xl">
+                <div className="flex justify-between px-4 py-2 border-b">
+                  <span className="font-medium">PDF Viewer</span>
+                  <button onClick={() => setActivePdfUrl(null)}>
+                    <FiX />
+                  </button>
+                </div>
+                <iframe
+                  src={activePdfUrl}
+                  className="w-full h-[calc(100%-48px)]"
+                  title="PDF Viewer"
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {showToast && (
+          <div className="fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded shadow">
+            Text extraction completed
+          </div>
+        )}
 
         <PdfDownloadPopup
-          open={openPdfDownload}
-          onClose={() => {
-            setOpenPdfDownload(false);
-            setRunningCard(null);
-          }}
+          open={openPdfUpload}
+          onClose={() => setOpenPdfUpload(false)}
           excelFile={excelFile}
-          onExcelUpload={handleExcelUpload}
-          onSearch={() => {
-            // connect API later
-            setTimeout(() => {
-              setRunningCard(null);
-              setOpenPdfDownload(false);
-            }, 1500);
-          }}
+          onExcelUpload={(e) => setExcelFile(e.target.files[0])}
+          onSearch={runPdfDownload}
         />
 
         <SecondaryPopup
           open={openSecondary}
-          onClose={() => {
-            setOpenSecondary(false);
-            setRunningCard(null);
-          }}
+          onClose={() => setOpenSecondary(false)}
           excelFile={excelFile}
-          onExcelUpload={handleExcelUpload}
           ifuFile={ifuFile}
-          onIfuUpload={handleIfuUpload}
-          inclusionCriteria={inclusionCriteria}
-          setInclusionCriteria={setInclusionCriteria}
-          exclusionCriteria={exclusionCriteria}
-          setExclusionCriteria={setExclusionCriteria}
-          onSearch={handleSecondarySearch}
+          onExcelUpload={(e) => setExcelFile(e.target.files[0])}
+          onIfuUpload={(e) => setIfuFile(e.target.files[0])}
+          onRun={runSecondary}
+          loading={loadingSecondary}
         />
-
-        {/* RESULTS */}
-        {rows.length > 0 && (
-          <>
-            <Typography variant="h5" sx={{ mt: 5 }}>
-              Secondary Screening Results
-            </Typography>
-
-            <Box sx={{ height: 500, mt: 2 }}>
-              <DataGrid rows={rows} columns={columns} />
-            </Box>
-          </>
-        )}
-      </Box>
+      </div>
     </Layout>
   );
 }
