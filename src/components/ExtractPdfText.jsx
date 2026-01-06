@@ -1,20 +1,37 @@
 import { motion, AnimatePresence } from "framer-motion";
+import { FileText, Loader } from "lucide-react";
+import { Box, Button, LinearProgress, Typography } from "@mui/material";
 
-export default function ExtractPdfText({
-  onExtract,
-  loading,
-  progress,
-}) {
+export default function ExtractPdfText({ onExtract, loading, progress }) {
   return (
-    <div className="flex flex-col gap-2">
-      <button
+    <Box sx={{ width: "100%" }}>
+      <Button
         onClick={onExtract}
         disabled={loading}
-        className={`border px-4 py-2 rounded-md text-sm
-          ${loading ? "opacity-60 cursor-not-allowed" : ""}`}
+        fullWidth
+        startIcon={loading ? <Loader size={18} /> : <FileText size={18} />}
+        variant="outlined"
+        sx={{
+          py: 1.5,
+          borderRadius: 2,
+          textTransform: "none",
+          fontWeight: 600,
+          borderWidth: 2,
+          transition: "all 0.3s ease",
+          "&:hover": {
+            borderWidth: 2,
+            transform: loading ? "none" : "translateY(-2px)",
+            boxShadow: loading ? "none" : "0 4px 12px rgba(37, 99, 235, 0.2)",
+          },
+          "&:disabled": {
+            borderWidth: 2,
+            borderColor: "#cbd5e1",
+            color: "#94a3b8",
+          }
+        }}
       >
         {loading ? "Extracting Text..." : "Extract Text from PDFs"}
-      </button>
+      </Button>
 
       <AnimatePresence>
         {loading && (
@@ -22,22 +39,65 @@ export default function ExtractPdfText({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="w-full"
+            transition={{ duration: 0.3 }}
           >
-            <div className="w-full bg-slate-200 rounded h-2 overflow-hidden">
-              <motion.div
-                className="bg-blue-600 h-2"
-                initial={{ width: 0 }}
-                animate={{ width: `${progress}%` }}
-                transition={{ ease: "easeOut" }}
+            <Box sx={{ mt: 2, p: 2, bgcolor: "#f8fafc", borderRadius: 2 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 600 }}>
+                  Processing PDFs...
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    color: "#1e293b",
+                    fontWeight: 700,
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {progress}%
+                </Typography>
+              </Box>
+              
+              <LinearProgress
+                variant="determinate"
+                value={progress}
+                sx={{
+                  height: 8,
+                  borderRadius: 4,
+                  bgcolor: "#e2e8f0",
+                  "& .MuiLinearProgress-bar": {
+                    background: "linear-gradient(90deg, #2563eb 0%, #14b8a6 100%)",
+                    borderRadius: 4,
+                  }
+                }}
               />
-            </div>
-            <div className="text-xs text-slate-500 mt-1 text-right">
-              {progress}%
-            </div>
+
+              <Box sx={{ display: "flex", gap: 1, mt: 1.5 }}>
+                {[...Array(3)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      opacity: [0.5, 1, 0.5],
+                    }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      delay: i * 0.2,
+                    }}
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "linear-gradient(135deg, #2563eb 0%, #14b8a6 100%)",
+                    }}
+                  />
+                ))}
+              </Box>
+            </Box>
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </Box>
   );
 }

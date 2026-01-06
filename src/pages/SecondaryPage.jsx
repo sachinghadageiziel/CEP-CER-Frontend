@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiUpload, FiEye, FiX } from "react-icons/fi";
+import { 
+  FiUpload, FiEye, FiX, FiCheckCircle, FiLoader, FiSearch, 
+  FiCheck, FiSquare, FiCheckSquare, FiFilter 
+} from "react-icons/fi";
 
 import Layout from "../Layout/Layout";
 import BreadcrumbsBar from "../components/BreadcrumbsBar";
 import PdfDownloadPopup from "../components/PdfDownloadPopup";
 import SecondaryPopup from "../components/SecondaryPopup";
 import DownloadedPdfPopup from "../components/DownloadedPdfPopup";
-import ExtractPdfText from "../components/ExtractPdfText";
 
 /* -------------------- HELPERS -------------------- */
 const normalizePMID = (pmid) => String(pmid).replace(".0", "");
@@ -31,15 +33,22 @@ export default function SecondaryPage() {
   const [loadingSecondary, setLoadingSecondary] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [progress, setProgress] = useState(0);
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   const [activePdfUrl, setActivePdfUrl] = useState(null);
   const [showPdfList, setShowPdfList] = useState(false);
 
+  /* ---------- SELECTION STATE ---------- */
+  const [selectedPMIDs, setSelectedPMIDs] = useState(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+
   /* ---------- PAGINATION ---------- */
   const [page, setPage] = useState(0);
   const pageSize = 10;
+
+  /* ---------- AUTO EXTRACT TEXT ---------- */
+  const [hasAutoExtracted, setHasAutoExtracted] = useState(false);
 
   /* ---------- LOAD EXISTING ---------- */
   useEffect(() => {
@@ -47,10 +56,41 @@ export default function SecondaryPage() {
       `http://localhost:5000/api/secondary/pdf-download/existing?project_id=${projectId}`
     )
       .then((r) => r.json())
-      .then((d) => d.exists && setPdfRows(d.screening || []));
+      .then((d) => {
+        if (d.exists) {
+          setPdfRows(d.screening || []);
+          // Auto extract text after loading PDFs
+          if (!hasAutoExtracted && d.screening && d.screening.length > 0) {
+            autoExtractText();
+          }
+        }
+      });
 
     loadPdfList();
   }, [projectId]);
+
+  /* ---------- AUTO EXTRACT TEXT FUNCTION ---------- */
+  const autoExtractText = async () => {
+    setLoadingText(true);
+    setHasAutoExtracted(true);
+
+    const form = new FormData();
+    form.append("project_id", projectId);
+
+    try {
+      await fetch("http://localhost:5000/api/secondary/pdf-to-text", {
+        method: "POST",
+        body: form,
+      });
+
+      setLoadingText(false);
+      setToastMessage("PDF text extracted successfully!");
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 1000);
+    } catch (error) {
+      setLoadingText(false);
+    }
+  };
 
   /* ---------- LOAD PDF LIST ---------- */
   const loadPdfList = async () => {
@@ -69,6 +109,29 @@ export default function SecondaryPage() {
     });
     return map;
   }, [downloadedPdfs]);
+
+  /* ---------- SELECTION LOGIC ---------- */
+  const togglePMID = (pmid) => {
+    const newSet = new Set(selectedPMIDs);
+    if (newSet.has(pmid)) {
+      newSet.delete(pmid);
+    } else {
+      newSet.add(pmid);
+    }
+    setSelectedPMIDs(newSet);
+    setSelectAll(newSet.size === filteredRows.length && filteredRows.length > 0);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedPMIDs(new Set());
+      setSelectAll(false);
+    } else {
+      const allPMIDs = filteredRows.map(r => normalizePMID(r.PMID));
+      setSelectedPMIDs(new Set(allPMIDs));
+      setSelectAll(true);
+    }
+  };
 
   /* ---------- API ACTIONS ---------- */
   const runPdfDownload = async () => {
@@ -92,38 +155,26 @@ export default function SecondaryPage() {
     loadPdfList();
     setLoadingPdf(false);
     setOpenPdfUpload(false);
-  };
-
-  const runPdfToText = async () => {
-    setLoadingText(true);
-    setProgress(0);
-
-    const interval = setInterval(() => {
-      setProgress((p) => (p < 90 ? p + 10 : p));
-    }, 300);
-
-    const form = new FormData();
-    form.append("project_id", projectId);
-
-    await fetch("http://localhost:5000/api/secondary/pdf-to-text", {
-      method: "POST",
-      body: form,
-    });
-
-    clearInterval(interval);
-    setProgress(100);
-    setLoadingText(false);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 3000);
+    
+    // Auto extract after upload
+    if (data.screening && data.screening.length > 0) {
+      autoExtractText();
+    }
   };
 
   const runSecondary = async () => {
+    if (selectedPMIDs.size === 0) {
+      alert("Please select at least one PMID to process");
+      return;
+    }
+
     setLoadingSecondary(true);
 
     const form = new FormData();
     form.append("project_id", projectId);
     form.append("primary_excel", excelFile);
     form.append("ifu_pdf", ifuFile);
+    form.append("selected_pmids", JSON.stringify([...selectedPMIDs]));
 
     await fetch(
       "http://localhost:5000/api/secondary/secondary-runner",
@@ -168,127 +219,308 @@ export default function SecondaryPage() {
     page * pageSize + pageSize
   );
 
+  const totalPages = Math.ceil(filteredRows.length / pageSize);
+
+  /* ---------- STATS ---------- */
+  const stats = useMemo(() => {
+    const selected = selectedPMIDs.size;
+    const available = [...selectedPMIDs].filter(pmid => {
+      const row = pdfRows.find(r => normalizePMID(r.PMID) === pmid);
+      return row && row.Status.toLowerCase().includes("available");
+    }).length;
+    const unavailable = selected - available;
+
+    return { selected, available, unavailable };
+  }, [selectedPMIDs, pdfRows]);
+
+  /* ---------- STATUS BADGE ---------- */
+  const getStatusBadge = (status) => {
+    const isAvailable = status.toLowerCase().includes("available");
+    return (
+      <span
+        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
+          isAvailable
+            ? "bg-green-100 text-green-700"
+            : "bg-red-100 text-red-700"
+        }`}
+      >
+        {isAvailable ? <FiCheckCircle className="w-3 h-3" /> : null}
+        {status}
+      </span>
+    );
+  };
+
   /* -------------------- UI -------------------- */
   return (
     <Layout>
-      <div className="p-6 space-y-6">
-
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="p-6 space-y-6"
+      >
         <BreadcrumbsBar
           items={[{ label: "Home", to: "/" }, { label: "Secondary Screening" }]}
         />
 
         {/* HEADER */}
-        <div className="flex justify-between items-center">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="flex justify-between items-center"
+        >
           <div>
-            <h1 className="text-2xl font-semibold">Secondary Screening</h1>
-            <p className="text-sm text-slate-500">
-              Project ID: {projectId}
+            <h1 className="text-3xl font-bold text-slate-800">Secondary Screening</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Project ID: <span className="font-medium text-slate-700">{projectId}</span>
             </p>
           </div>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => setOpenPdfUpload(true)}
-            className="h-10 flex items-center gap-2 bg-blue-600 text-white px-4 rounded-md text-sm hover:bg-blue-700"
+            className="h-11 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 rounded-lg text-sm font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all"
           >
-            <FiUpload /> Upload PMID Excel
-          </button>
-        </div>
+            <FiUpload className="w-4 h-4" /> Upload PMID Excel
+          </motion.button>
+        </motion.div>
 
-        {/* ACTION TOOLBAR */}
-        <div className="bg-white border rounded-md p-4">
-          <div className="grid grid-cols-[260px_auto_auto_auto] gap-3 items-center">
-
-            <input
-              className="h-10 border px-3 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Search PMID / Status"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-
-            <ExtractPdfText
-              onExtract={runPdfToText}
-              loading={loadingText}
-              progress={progress}
-            />
-
-            <button
-              onClick={() => setShowPdfList(true)}
-              className="h-10 border px-4 rounded-md text-sm hover:bg-slate-50"
-            >
-              View Downloaded PDFs
-            </button>
-
-            <button
-              onClick={() => setOpenSecondary(true)}
-              className="h-10 bg-green-600 text-white px-4 rounded-md text-sm hover:bg-green-700"
-            >
-              Run Secondary Screening
-            </button>
-          </div>
-
+        {/* PROCESSING STATUS */}
+        <AnimatePresence>
           {loadingText && (
-            <div className="mt-3">
-              <div className="w-full bg-slate-200 h-2 rounded overflow-hidden">
-                <motion.div
-                  className="bg-blue-600 h-2"
-                  animate={{ width: `${progress}%` }}
-                />
-              </div>
-              <div className="text-xs text-slate-500 mt-1 text-right">
-                {progress}%
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3"
+            >
+              <FiLoader className="w-5 h-5 text-blue-600 animate-spin" />
+              <span className="text-sm font-medium text-blue-900">
+                Processing PDF text extraction...
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* SELECTION STATS */}
+        {selectedPMIDs.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="grid grid-cols-3 gap-4"
+          >
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-blue-700">Selected</p>
+                  <p className="text-2xl font-bold text-blue-900 mt-1">
+                    {stats.selected}
+                  </p>
+                </div>
+                <div className="p-2 bg-blue-200 rounded-lg">
+                  <FiCheckSquare className="w-5 h-5 text-blue-700" />
+                </div>
               </div>
             </div>
-          )}
-        </div>
+
+            <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-green-700">Available PDFs</p>
+                  <p className="text-2xl font-bold text-green-900 mt-1">
+                    {stats.available}
+                  </p>
+                </div>
+                <div className="p-2 bg-green-200 rounded-lg">
+                  <FiCheckCircle className="w-5 h-5 text-green-700" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-amber-700">Unavailable</p>
+                  <p className="text-2xl font-bold text-amber-900 mt-1">
+                    {stats.unavailable}
+                  </p>
+                </div>
+                <div className="p-2 bg-amber-200 rounded-lg">
+                  <FiFilter className="w-5 h-5 text-amber-700" />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ACTION TOOLBAR */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
+        >
+          <div className="grid grid-cols-[1fr_auto_auto] gap-4 items-center">
+            <div className="relative">
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <input
+                className="w-full h-11 border border-slate-300 pl-10 pr-4 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="Search PMID or Status..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowPdfList(true)}
+              className="h-11 border border-slate-300 px-5 rounded-lg text-sm font-medium hover:bg-slate-50 hover:border-slate-400 transition-all"
+            >
+              View Downloaded PDFs
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setOpenSecondary(true)}
+              disabled={selectedPMIDs.size === 0}
+              className="h-11 bg-gradient-to-r from-green-600 to-green-700 text-white px-6 rounded-lg text-sm font-medium shadow-lg shadow-green-500/30 hover:shadow-xl hover:shadow-green-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Run Secondary Screening ({selectedPMIDs.size})
+            </motion.button>
+          </div>
+        </motion.div>
 
         {/* TABLE */}
-        <div className="bg-white border rounded-md overflow-hidden shadow-sm">
-          <div className="px-4 py-3 font-medium border-b">
-            PDF Availability Status
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
+        >
+          <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-800">PDF Availability Status</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                Showing {paginatedRows.length} of {filteredRows.length} entries
+              </p>
+            </div>
+            
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all"
+            >
+              {selectAll ? <FiCheckSquare className="w-4 h-4" /> : <FiSquare className="w-4 h-4" />}
+              {selectAll ? "Deselect All" : "Select All"}
+            </motion.button>
           </div>
 
-          <table className="w-full text-sm">
-            <thead className="bg-slate-100">
-              <tr>
-                <th className="px-4 py-2 text-left">PMID</th>
-                <th className="text-center">Status</th>
-                <th className="text-right px-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedRows.map((row, i) => {
-                const pmid = normalizePMID(row.PMID);
-                const filename = pdfFilenameMap[pmid];
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider w-20">
+                    Select
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    PMID
+                  </th>
+                  <th className="px-6 py-4 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {paginatedRows.map((row, i) => {
+                  const pmid = normalizePMID(row.PMID);
+                  const filename = pdfFilenameMap[pmid];
+                  const isSelected = selectedPMIDs.has(pmid);
 
-                return (
-                  <tr
-                    key={`${pmid}-${i}`}
-                    className="border-t hover:bg-slate-50 transition"
-                  >
-                    <td className="px-4 py-2 text-blue-600 font-medium">
-                      {pmid}
-                    </td>
-                    <td className="text-center">{row.Status}</td>
-                    <td className="px-4 py-2 text-right">
-                      {filename ? (
-                        <button
-                          onClick={() => openPdf(filename)}
-                          className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                  return (
+                    <tr
+                      key={`${pmid}-${i}`}
+                      className={`hover:bg-slate-50 transition-colors ${
+                        isSelected ? "bg-blue-50" : ""
+                      }`}
+                    >
+                      <td className="px-6 py-4 text-center">
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => togglePMID(pmid)}
+                          className="inline-flex items-center justify-center w-5 h-5"
                         >
-                          <FiEye /> View
-                        </button>
-                      ) : (
-                        <span className="text-slate-400 text-sm">
-                          Not available
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                          {isSelected ? (
+                            <FiCheckSquare className="w-5 h-5 text-blue-600" />
+                          ) : (
+                            <FiSquare className="w-5 h-5 text-slate-400" />
+                          )}
+                        </motion.button>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-blue-600 font-semibold">{pmid}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {getStatusBadge(row.Status)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {filename ? (
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => openPdf(filename)}
+                            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                          >
+                            <FiEye className="w-4 h-4" /> View PDF
+                          </motion.button>
+                        ) : (
+                          <span className="text-slate-400 text-sm italic">
+                            Not available
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* PAGINATION */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setPage(Math.max(0, page - 1))}
+                disabled={page === 0}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Previous
+              </motion.button>
+              <span className="text-sm text-slate-600">
+                Page {page + 1} of {totalPages}
+              </span>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+                disabled={page === totalPages - 1}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Next
+              </motion.button>
+            </div>
+          )}
+        </motion.div>
 
         <DownloadedPdfPopup
           open={showPdfList}
@@ -300,29 +532,56 @@ export default function SecondaryPage() {
         {/* PDF VIEWER */}
         <AnimatePresence>
           {activePdfUrl && (
-            <motion.div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-              <div className="bg-white w-[90%] h-[90%] rounded-md shadow-xl">
-                <div className="flex justify-between px-4 py-2 border-b">
-                  <span className="font-medium">PDF Viewer</span>
-                  <button onClick={() => setActivePdfUrl(null)}>
-                    <FiX />
-                  </button>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => setActivePdfUrl(null)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                transition={{ type: "spring", duration: 0.5 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white w-full max-w-6xl h-[90vh] rounded-xl shadow-2xl overflow-hidden"
+              >
+                <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 bg-slate-50">
+                  <span className="font-semibold text-slate-800">PDF Viewer</span>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setActivePdfUrl(null)}
+                    className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                  >
+                    <FiX className="w-5 h-5" />
+                  </motion.button>
                 </div>
                 <iframe
                   src={activePdfUrl}
-                  className="w-full h-[calc(100%-48px)]"
+                  className="w-full h-[calc(100%-64px)]"
                   title="PDF Viewer"
                 />
-              </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {showToast && (
-          <div className="fixed bottom-6 right-6 bg-green-600 text-white px-4 py-2 rounded shadow">
-            Text extraction completed
-          </div>
-        )}
+        {/* TOAST NOTIFICATION */}
+        <AnimatePresence>
+          {showToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 50, scale: 0.9 }}
+              className="fixed bottom-6 right-6 bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3"
+            >
+              <FiCheckCircle className="w-5 h-5" />
+              <span className="font-medium">{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <PdfDownloadPopup
           open={openPdfUpload}
@@ -330,6 +589,7 @@ export default function SecondaryPage() {
           excelFile={excelFile}
           onExcelUpload={(e) => setExcelFile(e.target.files[0])}
           onSearch={runPdfDownload}
+          running={loadingPdf}
         />
 
         <SecondaryPopup
@@ -342,7 +602,7 @@ export default function SecondaryPage() {
           onRun={runSecondary}
           loading={loadingSecondary}
         />
-      </div>
+      </motion.div>
     </Layout>
   );
 }
