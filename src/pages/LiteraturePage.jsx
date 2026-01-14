@@ -13,13 +13,26 @@ import {
   Chip,
   Alert,
   Snackbar,
+  Tooltip,
+  IconButton,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
-import { motion } from "framer-motion";
-import { FileSearch, Download, Upload, Database, AlertCircle, RefreshCw, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  FileSearch, 
+  Download, 
+  Upload, 
+  Database, 
+  AlertCircle, 
+  RefreshCw, 
+  X,
+  CheckCircle,
+  Info
+} from "lucide-react";
 import Layout from "../Layout/Layout";
 import LiteraturePopup from "../components/LiteraturePopup";
 import BreadcrumbsBar from "../components/BreadcrumbsBar";
+import LiteratureRecordModal from "../components/LiteratureRecordModal";
 
 export default function LiteraturePage() {
   const { id: PROJECT_ID } = useParams();
@@ -50,6 +63,14 @@ export default function LiteraturePage() {
   const [partialResults, setPartialResults] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [showRetry, setShowRetry] = useState(false);
+  
+  // Record modal states
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  
+  // Success notification
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     loadExistingData();
@@ -104,6 +125,7 @@ export default function LiteraturePage() {
     setError(null);
     setPartialResults(false);
     setShowRetry(false);
+    setShowSuccess(false);
 
     // Realistic progress simulation
     let fake = 5;
@@ -124,11 +146,19 @@ export default function LiteraturePage() {
       if (response.ok) {
         const data = await response.json();
         
-        // Check if partial results (status 206)
-        if (response.status === 206 || data.status === "partial") {
+        // Check status and show appropriate messages
+        if (data.status === "partial") {
           setPartialResults(true);
           setError(data.message || "Search completed with some errors. Partial results available.");
           setShowRetry(true);
+        } else if (data.status === "success_with_warnings") {
+          setError(data.message || "Search completed with some warnings.");
+          setPartialResults(false);
+          setShowRetry(false);
+        } else {
+          // Full success
+          setSuccessMessage(data.message || `Successfully found ${data.records_saved} records!`);
+          setShowSuccess(true);
         }
 
         setProgress(100);
@@ -158,6 +188,20 @@ export default function LiteraturePage() {
 
         setTimeout(() => setRunning(false), 600);
         
+      } else if (response.status === 499) {
+        // Cancelled
+        clearInterval(timer);
+        setRunning(false);
+        setProgress(0);
+        setError("Search was cancelled by user");
+        setShowRetry(false);
+      } else if (response.status === 409) {
+        // Already running
+        clearInterval(timer);
+        setRunning(false);
+        setProgress(0);
+        setError("A search is already running for this project. Please wait for it to complete.");
+        setShowRetry(false);
       } else {
         // Handle error responses
         const errorData = await response.json().catch(() => ({}));
@@ -187,13 +231,20 @@ export default function LiteraturePage() {
 
   const handleCancelSearch = async () => {
     try {
-      await fetch(`http://localhost:5000/api/literature/cancel/${PROJECT_ID}`, {
-        method: "POST"
-      });
-      setRunning(false);
-      setProgress(0);
+      const response = await fetch(
+        `http://localhost:5000/api/literature/cancel/${PROJECT_ID}`,
+        { method: "POST" }
+      );
+      
+      if (response.ok) {
+        setRunning(false);
+        setProgress(0);
+        setError("Search cancelled successfully");
+        setShowRetry(false);
+      }
     } catch (err) {
       console.error("Error cancelling search:", err);
+      setError("Failed to cancel search. Please try again.");
     }
   };
 
@@ -209,8 +260,13 @@ export default function LiteraturePage() {
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "All-Merged.xlsx";
+    link.download = `Literature_Results_Project_${PROJECT_ID}.xlsx`;
     link.click();
+  };
+
+  const handleRowClick = (params) => {
+    setSelectedRecord(params.row);
+    setModalOpen(true);
   };
 
   return (
@@ -273,135 +329,217 @@ export default function LiteraturePage() {
                   </Box>
                 </Box>
 
-                <Button
-                  variant="contained"
-                  disabled={running}
-                  onClick={() => setOpen(true)}
-                  startIcon={<Upload size={20} />}
-                  sx={{
-                    background: "linear-gradient(135deg, #2563eb 0%, #14b8a6 100%)",
-                    color: "#fff",
-                    px: 3,
-                    py: 1.2,
-                    borderRadius: 2,
-                    fontWeight: 600,
-                    textTransform: "none",
-                    boxShadow: "0 4px 16px rgba(37, 99, 235, 0.3)",
-                    transition: "all 0.3s ease",
-                    "&:hover": {
-                      transform: "translateY(-2px)",
-                      boxShadow: "0 8px 24px rgba(37, 99, 235, 0.4)",
-                    },
-                    "&:disabled": {
-                      background: "#cbd5e1",
-                      color: "#94a3b8",
-                    }
-                  }}
+                <Tooltip 
+                  title={running ? "Search in progress..." : "Upload keywords file to begin search"}
+                  arrow
                 >
-                  Upload Keywords & Start Search
-                </Button>
-              </Box>
-
-              {/* Error Alert */}
-              {error && (
-                <Zoom in>
-                  <Alert 
-                    severity={partialResults ? "warning" : "error"}
-                    action={
-                      showRetry && (
-                        <Button 
-                          color="inherit" 
-                          size="small"
-                          onClick={handleRetry}
-                          startIcon={<RefreshCw size={16} />}
-                        >
-                          Retry
-                        </Button>
-                      )
-                    }
-                    onClose={() => setError(null)}
-                    sx={{ mb: 3 }}
-                  >
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {partialResults ? "Partial Results Available" : "Search Error"}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.5, fontSize: "0.875rem" }}>
-                        {error}
-                      </Typography>
-                      {retryCount > 0 && (
-                        <Typography variant="caption" sx={{ mt: 1, display: "block", opacity: 0.8 }}>
-                          Retry attempt: {retryCount}
-                        </Typography>
-                      )}
-                    </Box>
-                  </Alert>
-                </Zoom>
-              )}
-
-              {/* Progress Section */}
-              {running && (
-                <Zoom in>
-                  <Card 
-                    sx={{ 
-                      p: 3, 
-                      mb: 4,
-                      borderRadius: 3,
-                      border: "1px solid #e0e7ff",
-                      background: "linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%)",
-                      boxShadow: "0 4px 12px rgba(37, 99, 235, 0.1)",
-                    }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "center", mb: 2, gap: 2 }}>
-                      <Database size={24} color="#2563eb" />
-                      <Box sx={{ flex: 1 }}>
-                        <Typography 
-                          variant="body1" 
-                          sx={{ fontWeight: 600, color: "#1e293b" }}
-                        >
-                          Processing Literature Search...
-                        </Typography>
-                        <Typography 
-                          variant="body2" 
-                          sx={{ color: "#64748b", mt: 0.5 }}
-                        >
-                          Searching databases and compiling results
-                        </Typography>
-                      </Box>
-                      <Chip 
-                        label={`${progress}%`}
-                        sx={{
-                          background: "linear-gradient(135deg, #2563eb 0%, #14b8a6 100%)",
-                          color: "#fff",
-                          fontWeight: 700,
-                        }}
-                      />
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={handleCancelSearch}
-                        startIcon={<X size={16} />}
-                        sx={{ ml: 1 }}
-                      >
-                        Cancel
-                      </Button>
-                    </Box>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={progress}
+                  <span>
+                    <Button
+                      variant="contained"
+                      disabled={running}
+                      onClick={() => setOpen(true)}
+                      startIcon={<Upload size={20} />}
                       sx={{
-                        height: 8,
-                        borderRadius: 4,
-                        bgcolor: "rgba(37, 99, 235, 0.1)",
-                        "& .MuiLinearProgress-bar": {
-                          background: "linear-gradient(90deg, #2563eb 0%, #14b8a6 100%)",
-                          borderRadius: 4,
+                        background: running 
+                          ? "#cbd5e1" 
+                          : "linear-gradient(135deg, #2563eb 0%, #14b8a6 100%)",
+                        color: "#fff",
+                        px: 3,
+                        py: 1.2,
+                        borderRadius: 2,
+                        fontWeight: 600,
+                        textTransform: "none",
+                        boxShadow: running 
+                          ? "none" 
+                          : "0 4px 16px rgba(37, 99, 235, 0.3)",
+                        transition: "all 0.3s ease",
+                        "&:hover": {
+                          transform: running ? "none" : "translateY(-2px)",
+                          boxShadow: running 
+                            ? "none" 
+                            : "0 8px 24px rgba(37, 99, 235, 0.4)",
+                        },
+                        "&:disabled": {
+                          background: "#cbd5e1",
+                          color: "#94a3b8",
                         }
                       }}
-                    />
-                  </Card>
-                </Zoom>
-              )}
+                    >
+                      Upload Keywords & Start Search
+                    </Button>
+                  </span>
+                </Tooltip>
+              </Box>
+
+              {/* Success Snackbar */}
+              <Snackbar
+                open={showSuccess}
+                autoHideDuration={6000}
+                onClose={() => setShowSuccess(false)}
+                anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+              >
+                <Alert 
+                  onClose={() => setShowSuccess(false)} 
+                  severity="success"
+                  sx={{ width: '100%' }}
+                  icon={<CheckCircle size={20} />}
+                >
+                  {successMessage}
+                </Alert>
+              </Snackbar>
+
+              {/* Error Alert */}
+              <AnimatePresence>
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Alert 
+                      severity={partialResults ? "warning" : "error"}
+                      action={
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          {showRetry && (
+                            <Button 
+                              color="inherit" 
+                              size="small"
+                              onClick={handleRetry}
+                              startIcon={<RefreshCw size={16} />}
+                              sx={{ fontWeight: 600 }}
+                            >
+                              Retry
+                            </Button>
+                          )}
+                          <IconButton
+                            size="small"
+                            onClick={() => setError(null)}
+                            sx={{ color: "inherit" }}
+                          >
+                            <X size={18} />
+                          </IconButton>
+                        </Stack>
+                      }
+                      sx={{ 
+                        mb: 3,
+                        borderRadius: 2,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                          {partialResults ? "⚠️ Partial Results Available" : "❌ Search Error"}
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontSize: "0.875rem" }}>
+                          {error}
+                        </Typography>
+                        {retryCount > 0 && (
+                          <Typography 
+                            variant="caption" 
+                            sx={{ 
+                              mt: 1, 
+                              display: "block", 
+                              opacity: 0.8,
+                              fontStyle: "italic" 
+                            }}
+                          >
+                            Retry attempt: {retryCount}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Alert>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Progress Section */}
+              <AnimatePresence>
+                {running && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Card 
+                      sx={{ 
+                        p: 3, 
+                        mb: 4,
+                        borderRadius: 3,
+                        border: "1px solid #e0e7ff",
+                        background: "linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%)",
+                        boxShadow: "0 8px 24px rgba(37, 99, 235, 0.15)",
+                      }}
+                    >
+                      <Box sx={{ display: "flex", alignItems: "center", mb: 2, gap: 2 }}>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                        >
+                          <Database size={24} color="#2563eb" />
+                        </motion.div>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography 
+                            variant="body1" 
+                            sx={{ fontWeight: 600, color: "#1e293b" }}
+                          >
+                            Processing Literature Search...
+                          </Typography>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ color: "#64748b", mt: 0.5 }}
+                          >
+                            Searching databases and compiling results
+                          </Typography>
+                        </Box>
+                        <Chip 
+                          label={`${progress}%`}
+                          sx={{
+                            background: "linear-gradient(135deg, #2563eb 0%, #14b8a6 100%)",
+                            color: "#fff",
+                            fontWeight: 700,
+                            fontSize: "0.875rem",
+                            height: 32,
+                          }}
+                        />
+                        <Tooltip title="Cancel search" arrow>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={handleCancelSearch}
+                            startIcon={<X size={16} />}
+                            sx={{ 
+                              ml: 1,
+                              borderColor: "#ef4444",
+                              color: "#ef4444",
+                              "&:hover": {
+                                borderColor: "#dc2626",
+                                bgcolor: "rgba(239, 68, 68, 0.1)",
+                              }
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </Tooltip>
+                      </Box>
+                      <LinearProgress 
+                        variant="determinate" 
+                        value={progress}
+                        sx={{
+                          height: 8,
+                          borderRadius: 4,
+                          bgcolor: "rgba(37, 99, 235, 0.1)",
+                          "& .MuiLinearProgress-bar": {
+                            background: "linear-gradient(90deg, #2563eb 0%, #14b8a6 100%)",
+                            borderRadius: 4,
+                          }
+                        }}
+                      />
+                    </Card>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Results Section */}
               {masterData.length > 0 && (
@@ -410,8 +548,15 @@ export default function LiteraturePage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5 }}
                 >
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  <Box sx={{ 
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    alignItems: "center", 
+                    mb: 3,
+                    flexWrap: "wrap",
+                    gap: 2,
+                  }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
                       <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
                         Search Results
                       </Typography>
@@ -428,12 +573,28 @@ export default function LiteraturePage() {
                           icon={<AlertCircle size={14} />}
                         />
                       )}
+                      <Tooltip 
+                        title="Click any row to view complete article details"
+                        arrow
+                      >
+                        <Chip 
+                          icon={<Info size={14} />}
+                          label="Click to view details"
+                          size="small"
+                          variant="outlined"
+                          sx={{ 
+                            borderColor: "#94a3b8",
+                            color: "#64748b",
+                          }}
+                        />
+                      </Tooltip>
                     </Box>
                     
                     <Button
                       onClick={downloadExcel}
                       startIcon={<Download size={18} />}
                       variant="outlined"
+                      disabled={!excelBlob}
                       sx={{
                         borderRadius: 2,
                         textTransform: "none",
@@ -463,6 +624,7 @@ export default function LiteraturePage() {
                       columns={columns}
                       disableRowSelectionOnClick
                       pageSizeOptions={[10, 25, 50, 100]}
+                      onRowClick={handleRowClick}
                       sx={{
                         border: "none",
                         "& .MuiDataGrid-cell": {
@@ -474,8 +636,13 @@ export default function LiteraturePage() {
                           fontWeight: 700,
                           color: "#475569",
                         },
+                        "& .MuiDataGrid-row": {
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                        },
                         "& .MuiDataGrid-row:hover": {
-                          bgcolor: "#f8fafc",
+                          bgcolor: "#f1f5f9",
+                          transform: "scale(1.001)",
                         }
                       }}
                     />
@@ -484,23 +651,55 @@ export default function LiteraturePage() {
               )}
 
               {masterData.length === 0 && !running && (
-                <Card
-                  sx={{
-                    p: 8,
-                    textAlign: "center",
-                    borderRadius: 3,
-                    border: "2px dashed #cbd5e1",
-                    bgcolor: "#f8fafc",
-                  }}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5 }}
                 >
-                  <FileSearch size={64} color="#94a3b8" style={{ marginBottom: 16 }} />
-                  <Typography variant="h6" sx={{ color: "#64748b", mb: 1, fontWeight: 600 }}>
-                    No literature data yet
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "#94a3b8" }}>
-                    Upload keywords and start your literature search to see results
-                  </Typography>
-                </Card>
+                  <Card
+                    sx={{
+                      p: 8,
+                      textAlign: "center",
+                      borderRadius: 3,
+                      border: "2px dashed #cbd5e1",
+                      bgcolor: "#f8fafc",
+                    }}
+                  >
+                    <motion.div
+                      animate={{ 
+                        y: [0, -10, 0],
+                      }}
+                      transition={{ 
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    >
+                      <FileSearch size={64} color="#94a3b8" style={{ marginBottom: 16 }} />
+                    </motion.div>
+                    <Typography variant="h6" sx={{ color: "#64748b", mb: 1, fontWeight: 600 }}>
+                      No literature data yet
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "#94a3b8", mb: 3 }}>
+                      Upload keywords and start your literature search to see results
+                    </Typography>
+                    <Button
+                      variant="outlined"
+                      onClick={() => setOpen(true)}
+                      startIcon={<Upload size={18} />}
+                      sx={{
+                        textTransform: "none",
+                        fontWeight: 600,
+                        borderWidth: 2,
+                        "&:hover": {
+                          borderWidth: 2,
+                        }
+                      }}
+                    >
+                      Get Started
+                    </Button>
+                  </Card>
+                </motion.div>
               )}
             </div>
           </Fade>
@@ -524,6 +723,12 @@ export default function LiteraturePage() {
           onSearch={handleSearch}
           running={running}
           progress={progress}
+        />
+
+        <LiteratureRecordModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          record={selectedRecord}
         />
       </Box>
     </Layout>

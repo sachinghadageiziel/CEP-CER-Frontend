@@ -1,3 +1,4 @@
+// HomePage.jsx - Updated with correct API endpoints
 import React, { useState, useEffect } from "react";
 import {
   Typography,
@@ -9,18 +10,22 @@ import {
   Fade,
   Zoom,
   Container,
+  CircularProgress,
+  Snackbar,
+  Alert as MuiAlert,
 } from "@mui/material";
 import { Add, Science, CheckCircle, Pending } from "@mui/icons-material";
 import AddProjectDialog from "../components/AddProjectDialog";
 import ProjectCard from "../components/ProjectCard";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import Layout from "../Layout/Layout";
 
 export default function Home() {
   const [projects, setProjects] = useState([]);
   const [counts, setCounts] = useState({ total: 0, active: 0, completed: 0 });
   const [openDialog, setOpenDialog] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
 
   const navigate = useNavigate();
 
@@ -30,44 +35,76 @@ export default function Home() {
 
   const fetchProjects = async () => {
     try {
-      const res = await axios.get("http://127.0.0.1:5000/api/projects/list");
-      setProjects(res.data.projects);
+      setLoading(true);
+      
+      // Call the correct endpoint: /api/projects/existing
+      const response = await fetch("http://localhost:5000/api/projects/existing");
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const projectsData = await response.json();
+      
+      console.log("📥 Projects fetched:", projectsData);
+      
+      setProjects(projectsData);
+
+      // Calculate counts
+      const activeCount = projectsData.filter(p => p.status === "Active").length;
+      const completedCount = projectsData.filter(p => p.status === "Completed").length;
 
       setCounts({
-        total: res.data.projects.length,
-        active: res.data.projects.length,
-        completed: 0,
+        total: projectsData.length,
+        active: activeCount,
+        completed: completedCount,
       });
     } catch (err) {
-      console.error("Error fetching projects", err);
+      console.error("❌ Error fetching projects:", err);
+      setSnackbar({
+        open: true,
+        message: "Failed to load projects. Please ensure backend is running.",
+        severity: "error"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleOpenDialog = () => setOpenDialog(true);
   const handleCloseDialog = () => setOpenDialog(false);
 
-  const handleSaveProject = async (data) => {
+  const handleSaveProject = async (newProject) => {
     try {
-      const formData = new FormData();
-      formData.append("title", data.title);
-      formData.append("duration", data.duration);
-      formData.append("description", data.description);
-      formData.append("owner", data.owner);
-
-      await axios.post("http://127.0.0.1:5000/api/projects/create", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
+      console.log("✅ New project saved:", newProject);
+      
+      // Show success message
+      setSnackbar({
+        open: true,
+        message: "Project created successfully!",
+        severity: "success"
       });
-
+      
+      // Refresh projects list
+      await fetchProjects();
+      
       handleCloseDialog();
-      fetchProjects();
     } catch (err) {
-      console.error("Error creating project", err);
-      alert("Failed to create project");
+      console.error("❌ Error in handleSaveProject:", err);
+      setSnackbar({
+        open: true,
+        message: "Failed to create project",
+        severity: "error"
+      });
     }
   };
 
   const handleLaunchProject = (project) => {
     navigate(`/project/${project.id}`, { state: { project } });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
 
   const statCards = [
@@ -97,16 +134,36 @@ export default function Home() {
     },
   ];
 
+  // Show loading state
+  if (loading) {
+    return (
+      <Layout>
+        <Box sx={{ 
+          minHeight: "100vh", 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "center",
+          bgcolor: "#f8f9fa"
+        }}>
+          <Box sx={{ textAlign: "center" }}>
+            <CircularProgress size={60} sx={{ color: "#0d6efd", mb: 2 }} />
+            <Typography variant="h6" sx={{ color: "#6c757d" }}>
+              Loading your projects...
+            </Typography>
+          </Box>
+        </Box>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <Box sx={{ minHeight: "100vh", bgcolor: "#f8f9fa" }}>
-        {/* Hero Section - Seamless with navbar */}
+        {/* Hero Section */}
         <Fade in timeout={800}>
           <Box
             sx={{
               background: "linear-gradient(180deg, #1976fd 0%, #0d6efd 50%, rgba(13, 110, 253, 0.05) 100%)",
-             // background: "linear-gradient(180deg, #1e6ef5 0%, #3b82f6 45%, #f8f9fa 100%)",
-
               pt: { xs: 4, md: 6 },
               pb: { xs: 8, md: 12 },
               px: { xs: 2, md: 4 },
@@ -334,7 +391,7 @@ export default function Home() {
 
               <Grid container spacing={3}>
                 {projects.map((project, index) => (
-                  <Grid item xs={12} sm={6} lg={4} key={project.project_id}>
+                  <Grid item xs={12} sm={6} lg={4} key={project.id}>
                     <Zoom in timeout={800 + index * 100}>
                       <div>
                         <ProjectCard 
@@ -419,11 +476,30 @@ export default function Home() {
           </Fade>
         </Container>
 
+        {/* Add Project Dialog */}
         <AddProjectDialog
           open={openDialog}
           handleClose={handleCloseDialog}
           handleSave={handleSaveProject}
         />
+
+        {/* Snackbar for notifications */}
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={4000}
+          onClose={handleCloseSnackbar}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        >
+          <MuiAlert
+            onClose={handleCloseSnackbar}
+            severity={snackbar.severity}
+            sx={{ width: "100%" }}
+            elevation={6}
+            variant="filled"
+          >
+            {snackbar.message}
+          </MuiAlert>
+        </Snackbar>
       </Box>
     </Layout>
   );
