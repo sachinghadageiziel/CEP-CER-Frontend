@@ -1,3 +1,4 @@
+// ProjectCard.jsx - Updated with IFU download and backend data integration
 import React, { useState } from "react";
 import { 
   Card, 
@@ -11,6 +12,7 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
+  Chip,
 } from "@mui/material";
 import { 
   ArrowRight, 
@@ -18,13 +20,14 @@ import {
   Filter, 
   ClipboardCheck,
   Calendar,
-  User,
   MoreVertical,
   Edit,
   Trash2,
+  Download,
+  FileText,
 } from "lucide-react";
 
-export default function ProjectCard({ project, onLaunch, onEdit, onDelete }) {
+export default function ProjectCard({ project, onLaunch, onEdit, onDelete, onDownloadIFU }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -48,6 +51,54 @@ export default function ProjectCard({ project, onLaunch, onEdit, onDelete }) {
     handleMenuClose();
     if (onDelete) onDelete(project);
   };
+
+  const handleDownload = (e) => {
+    e.stopPropagation();
+    handleMenuClose();
+    if (onDownloadIFU) onDownloadIFU(project.id);
+  };
+
+  // Format date helper
+  const formatDate = (dateString) => {
+    if (!dateString) return "Not set";
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  // Calculate duration
+  const getDuration = () => {
+    if (!project.start_date || !project.end_date) return "Duration not set";
+    const start = new Date(project.start_date);
+    const end = new Date(project.end_date);
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 30) return `${diffDays} days`;
+    if (diffDays < 365) return `${Math.round(diffDays / 30)} months`;
+    return `${Math.round(diffDays / 365)} years`;
+  };
+
+  // Get status color
+  const getStatusColor = () => {
+    switch (project.status) {
+      case "Active":
+        return { bg: "#d1e7dd", color: "#0f5132", border: "#95c9a8" };
+      case "Completed":
+        return { bg: "#cfe2ff", color: "#084298", border: "#9ec5fe" };
+      case "On Hold":
+        return { bg: "#fff3cd", color: "#664d03", border: "#ffdf7e" };
+      case "Archived":
+        return { bg: "#e2e3e5", color: "#41464b", border: "#c4c8cc" };
+      default:
+        return { bg: "#f8f9fa", color: "#495057", border: "#dee2e6" };
+    }
+  };
+
+  const statusColors = getStatusColor();
 
   return (
     <Card
@@ -183,6 +234,34 @@ export default function ProjectCard({ project, onLaunch, onEdit, onDelete }) {
                 }}
               />
             </MenuItem>
+            
+            {/* Download IFU option - only show if IFU exists */}
+            <MenuItem 
+              onClick={handleDownload}
+              sx={{
+                py: 1.5,
+                px: 2,
+                transition: "all 0.2s ease",
+                "&:hover": {
+                  bgcolor: "#e7f1ff",
+                  "& .MuiListItemIcon-root": {
+                    color: "#0d6efd",
+                  }
+                }
+              }}
+            >
+              <ListItemIcon>
+                <Download size={18} strokeWidth={2.5} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Download IFU"
+                primaryTypographyProps={{
+                  fontWeight: 600,
+                  fontSize: "0.9rem"
+                }}
+              />
+            </MenuItem>
+            
             <Divider sx={{ my: 0.5 }} />
             <MenuItem 
               onClick={handleDelete}
@@ -220,7 +299,7 @@ export default function ProjectCard({ project, onLaunch, onEdit, onDelete }) {
           sx={{ 
             fontWeight: 700,
             color: "#212529",
-            mb: 1,
+            mb: 1.5,
             lineHeight: 1.3,
             fontSize: "1.15rem"
           }}
@@ -228,21 +307,19 @@ export default function ProjectCard({ project, onLaunch, onEdit, onDelete }) {
           {project.title}
         </Typography>
 
-        <Typography
-          variant="body2"
+        {/* Status Chip */}
+        <Chip
+          label={project.status}
+          size="small"
           sx={{
-            color: "#6c757d",
-            lineHeight: 1.6,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-            minHeight: "2.8em",
-            fontSize: "0.9rem"
+            bgcolor: statusColors.bg,
+            color: statusColors.color,
+            border: `2px solid ${statusColors.border}`,
+            fontWeight: 700,
+            fontSize: "0.75rem",
+            px: 1,
           }}
-        >
-          {project.description || "No description available"}
-        </Typography>
+        />
       </Box>
 
       {/* Content */}
@@ -277,12 +354,58 @@ export default function ProjectCard({ project, onLaunch, onEdit, onDelete }) {
                 boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
               }}
             >
-              <User size={16} color="#0d6efd" strokeWidth={2.5} />
+              <Calendar size={16} color="#0d6efd" strokeWidth={2.5} />
             </Box>
-            <Typography variant="body2" sx={{ color: "#495057", fontSize: "0.875rem", fontWeight: 500 }}>
-              <span style={{ fontWeight: 700, color: "#212529" }}>Owner:</span> {project.owner}
-            </Typography>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.7rem", fontWeight: 600, display: "block" }}>
+                START DATE
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#212529", fontSize: "0.875rem", fontWeight: 600 }}>
+                {formatDate(project.start_date)}
+              </Typography>
+            </Box>
           </Box>
+          
+          <Box 
+            sx={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: 1.5,
+              mb: 1.5,
+              p: 1.5,
+              borderRadius: 2,
+              bgcolor: "#f8f9fa",
+              transition: "all 0.3s ease",
+              "&:hover": {
+                bgcolor: "#e7f1ff",
+                transform: "translateX(4px)"
+              }
+            }}
+          >
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: 2,
+                bgcolor: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+              }}
+            >
+              <Calendar size={16} color="#0d6efd" strokeWidth={2.5} />
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.7rem", fontWeight: 600, display: "block" }}>
+                END DATE
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#212529", fontSize: "0.875rem", fontWeight: 600 }}>
+                {formatDate(project.end_date)}
+              </Typography>
+            </Box>
+          </Box>
+
           <Box 
             sx={{ 
               display: "flex", 
@@ -310,15 +433,20 @@ export default function ProjectCard({ project, onLaunch, onEdit, onDelete }) {
                 boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
               }}
             >
-              <Calendar size={16} color="#0d6efd" strokeWidth={2.5} />
+              <FileText size={16} color="#0d6efd" strokeWidth={2.5} />
             </Box>
-            <Typography variant="body2" sx={{ color: "#495057", fontSize: "0.875rem", fontWeight: 500 }}>
-              <span style={{ fontWeight: 700, color: "#212529" }}>Duration:</span> {project.duration}
-            </Typography>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.7rem", fontWeight: 600, display: "block" }}>
+                DURATION
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#212529", fontSize: "0.875rem", fontWeight: 600 }}>
+                {getDuration()}
+              </Typography>
+            </Box>
           </Box>
         </Box>
 
-        {/* Status Chips with different colors */}
+        {/* Workflow Status Chips */}
         <Box 
           sx={{ 
             display: "grid",

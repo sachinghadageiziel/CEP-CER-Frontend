@@ -9,12 +9,14 @@ import {
   Stack,
   Container,
   Fade,
-  Zoom,
   Chip,
   Alert,
   Snackbar,
   Tooltip,
   IconButton,
+  Menu,
+  MenuItem,
+  Badge,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,7 +29,12 @@ import {
   RefreshCw, 
   X,
   CheckCircle,
-  Info
+  Info,
+  Filter,
+  Trash2,
+  Edit,
+  MoreVertical,
+  FileDown,
 } from "lucide-react";
 import Layout from "../Layout/Layout";
 import LiteraturePopup from "../components/LiteraturePopup";
@@ -39,234 +46,231 @@ export default function LiteraturePage() {
 
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState(null);
-  const [applyDateFilter, setApplyDateFilter] = useState(false);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [filters, setFilters] = useState({
-    abstract: false,
-    freeFullText: false,
-    fullText: false,
-  });
-  const [databases, setDatabases] = useState({
-    pubmed: true,
-    cochrane: false,
-    googleScholar: false,
-  });
   const [masterData, setMasterData] = useState([]);
   const [columns, setColumns] = useState([]);
-  const [excelBlob, setExcelBlob] = useState(null);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   
-  // Error handling states
+  // Error & Success handling
   const [error, setError] = useState(null);
-  const [partialResults, setPartialResults] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
-  const [showRetry, setShowRetry] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   
   // Record modal states
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   
-  // Success notification
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  // Filter state
+  const [uniqueOnly, setUniqueOnly] = useState(true);
+  const [applyDateFilter, setApplyDateFilter] = useState(false);
+const [fromDate, setFromDate] = useState("");
+const [toDate, setToDate] = useState("");
+
+const [filters, setFilters] = useState({
+  abstract: true,
+  freeFullText: false,
+  fullText: false,
+});
+
+const [databases, setDatabases] = useState({
+  pubmed: true,
+});
+  
+  // Export menu
+  const [exportAnchor, setExportAnchor] = useState(null);
+  const exportMenuOpen = Boolean(exportAnchor);
 
   useEffect(() => {
     loadExistingData();
-  }, [PROJECT_ID]);
+  }, [PROJECT_ID, uniqueOnly]);
 
-  const loadExistingData = () => {
-    fetch(
-      `http://localhost:5000/api/literature/existing?project_id=${PROJECT_ID}`
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data?.masterSheet?.length) return;
+  const loadExistingData = async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/literature/literature-screen?project_id=${PROJECT_ID}&unique_only=${uniqueOnly}`
+      );
+      
+      if (!response.ok) {
+        throw new Error("Failed to load literature data");
+      }
 
-        setColumns(
-          Object.keys(data.masterSheet[0]).map((key) => ({
-            field: key,
-            headerName: key,
-            flex: 1,
-            minWidth: 160,
-          }))
-        );
-
-        setMasterData(
-          data.masterSheet.map((row, i) => ({ id: i + 1, ...row }))
-        );
-
-        setExcelBlob(data.excelFile);
-      })
-      .catch((err) => {
-        console.error("Error loading existing data:", err);
-      });
+      const data = await response.json();
+      
+      if (data.exists && data.masterSheet && data.masterSheet.length > 0) {
+        // Create columns dynamically
+        const cols = Object.keys(data.masterSheet[0]).map((key) => ({
+          field: key,
+          headerName: key,
+          flex: 1,
+          minWidth: key === "Abstract" ? 300 : 160,
+        }));
+        
+        setColumns(cols);
+        setMasterData(data.masterSheet.map((row, i) => ({ id: i + 1, ...row })));
+      } else {
+        setColumns([]);
+        setMasterData([]);
+      }
+    } catch (err) {
+      console.error("Error loading existing data:", err);
+      setError("Failed to load existing literature data");
+    }
   };
 
-  const handleUpload = (e) => setFile(e.target.files[0]);
+  const handleUpload = (e) => {
+    const uploadedFile = e.target.files[0];
+    if (uploadedFile) {
+      setFile(uploadedFile);
+    }
+  };
 
-  const handleSearch = async (isRetry = false) => {
-    if (!file && !isRetry) return;
-
-    const form = new FormData();
-    form.append("project_id", PROJECT_ID);
-    form.append("keywordsFile", file);
-    form.append("applyDateFilter", applyDateFilter.toString());
-    form.append("fromDate", fromDate);
-    form.append("toDate", toDate);
-    form.append("abstract", filters.abstract.toString());
-    form.append("freeFullText", filters.freeFullText.toString());
-    form.append("fullText", filters.fullText.toString());
+  const handleSearch = async () => {
+    if (!file) {
+      setError("Please upload a keywords file first");
+      return;
+    }
 
     setRunning(true);
     setProgress(5);
     setOpen(false);
     setError(null);
-    setPartialResults(false);
-    setShowRetry(false);
     setShowSuccess(false);
 
-    // Realistic progress simulation
-    let fake = 5;
+    // Progress simulation
+    let fakeProgress = 5;
     const timer = setInterval(() => {
-      fake += Math.random() * 3;
-      if (fake < 85) setProgress(Math.floor(fake));
+      fakeProgress += Math.random() * 3;
+      if (fakeProgress < 85) setProgress(Math.floor(fakeProgress));
     }, 1000);
 
     try {
-      const response = await fetch("http://localhost:5000/api/literature/run", {
-        method: "POST",
-        body: form,
-      });
+      // Step 1: Upload keywords
+      const keywordForm = new FormData();
+      keywordForm.append("project_id", PROJECT_ID);
+      keywordForm.append("keywordsFile", file);
+
+      const keywordResponse = await fetch(
+        "http://localhost:5000/api/literature/keywords",
+        {
+          method: "POST",
+          body: keywordForm,
+        }
+      );
+
+      if (!keywordResponse.ok) {
+        const errorData = await keywordResponse.json();
+        throw new Error(errorData.detail || "Failed to upload keywords");
+      }
+
+      const keywordResult = await keywordResponse.json();
+      console.log("✅ Keywords uploaded:", keywordResult);
+
+      // Step 2: Run literature screening
+      const screenForm = new FormData();
+      screenForm.append("project_id", PROJECT_ID);
+
+      const screenResponse = await fetch(
+        "http://localhost:5000/api/literature/literature-screen",
+        {
+          method: "POST",
+          body: screenForm,
+        }
+      );
 
       clearInterval(timer);
 
-      // Handle different response types
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Check status and show appropriate messages
-        if (data.status === "partial") {
-          setPartialResults(true);
-          setError(data.message || "Search completed with some errors. Partial results available.");
-          setShowRetry(true);
-        } else if (data.status === "success_with_warnings") {
-          setError(data.message || "Search completed with some warnings.");
-          setPartialResults(false);
-          setShowRetry(false);
-        } else {
-          // Full success
-          setSuccessMessage(data.message || `Successfully found ${data.records_saved} records!`);
-          setShowSuccess(true);
-        }
-
-        setProgress(100);
-
-        // Load the results
-        const res = await fetch(
-          `http://localhost:5000/api/literature/existing?project_id=${PROJECT_ID}`
-        );
-        const resultData = await res.json();
-
-        if (resultData.masterSheet && resultData.masterSheet.length > 0) {
-          setColumns(
-            Object.keys(resultData.masterSheet[0]).map((key) => ({
-              field: key,
-              headerName: key,
-              flex: 1,
-              minWidth: 160,
-            }))
-          );
-
-          setMasterData(
-            resultData.masterSheet.map((row, i) => ({ id: i + 1, ...row }))
-          );
-
-          setExcelBlob(resultData.excelFile);
-        }
-
-        setTimeout(() => setRunning(false), 600);
-        
-      } else if (response.status === 499) {
-        // Cancelled
-        clearInterval(timer);
-        setRunning(false);
-        setProgress(0);
-        setError("Search was cancelled by user");
-        setShowRetry(false);
-      } else if (response.status === 409) {
-        // Already running
-        clearInterval(timer);
-        setRunning(false);
-        setProgress(0);
-        setError("A search is already running for this project. Please wait for it to complete.");
-        setShowRetry(false);
-      } else {
-        // Handle error responses
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Search failed with status ${response.status}`);
+      if (!screenResponse.ok) {
+        const errorData = await screenResponse.json();
+        throw new Error(errorData.detail || "Literature screening failed");
       }
 
+      const screenResult = await screenResponse.json();
+      console.log("✅ Literature screening completed:", screenResult);
+
+      setProgress(100);
+      setSuccessMessage(
+        `Successfully found ${screenResult.records_saved} literature records!`
+      );
+      setShowSuccess(true);
+
+      // Reload data
+      await loadExistingData();
+      
+      setTimeout(() => setRunning(false), 600);
     } catch (err) {
       clearInterval(timer);
       setRunning(false);
       setProgress(0);
-      
-      const errorMessage = err.message || "Literature search failed due to a network error";
-      setError(errorMessage);
-      setShowRetry(true);
-      
+      setError(err.message || "Literature search failed");
       console.error("Literature search error:", err);
-      
-      // Check if any partial results exist
-      loadExistingData();
     }
   };
 
-  const handleRetry = () => {
-    setRetryCount(prev => prev + 1);
-    handleSearch(true);
+  const handleExportClick = (event) => {
+    setExportAnchor(event.currentTarget);
   };
 
-  const handleCancelSearch = async () => {
+  const handleExportClose = () => {
+    setExportAnchor(null);
+  };
+
+  const handleExport = async (exportType) => {
     try {
       const response = await fetch(
-        `http://localhost:5000/api/literature/cancel/${PROJECT_ID}`,
-        { method: "POST" }
+        `http://localhost:5000/api/literature/export-literature-screen?project_id=${PROJECT_ID}&export_type=${exportType}`
       );
-      
-      if (response.ok) {
-        setRunning(false);
-        setProgress(0);
-        setError("Search cancelled successfully");
-        setShowRetry(false);
+
+      if (!response.ok) {
+        throw new Error("Export failed");
       }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Literature_${exportType}_Project_${PROJECT_ID}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      setSuccessMessage(`Successfully exported ${exportType} records!`);
+      setShowSuccess(true);
     } catch (err) {
-      console.error("Error cancelling search:", err);
-      setError("Failed to cancel search. Please try again.");
+      setError("Failed to export literature data");
+      console.error("Export error:", err);
     }
-  };
-
-  const downloadExcel = () => {
-    if (!excelBlob) return;
-
-    const bytes = atob(excelBlob);
-    const buffer = new Uint8Array([...bytes].map((c) => c.charCodeAt(0)));
-
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Literature_Results_Project_${PROJECT_ID}.xlsx`;
-    link.click();
+    
+    handleExportClose();
   };
 
   const handleRowClick = (params) => {
     setSelectedRecord(params.row);
     setModalOpen(true);
+  };
+
+  const handleDeleteRecord = async (pmid) => {
+    if (!window.confirm("Are you sure you want to delete this record?")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/literature/${PROJECT_ID}/${pmid}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete record");
+      }
+
+      setSuccessMessage("Record deleted successfully");
+      setShowSuccess(true);
+      loadExistingData();
+    } catch (err) {
+      setError("Failed to delete record");
+      console.error("Delete error:", err);
+    }
   };
 
   return (
@@ -398,28 +402,15 @@ export default function LiteraturePage() {
                     transition={{ duration: 0.3 }}
                   >
                     <Alert 
-                      severity={partialResults ? "warning" : "error"}
+                      severity="error"
                       action={
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          {showRetry && (
-                            <Button 
-                              color="inherit" 
-                              size="small"
-                              onClick={handleRetry}
-                              startIcon={<RefreshCw size={16} />}
-                              sx={{ fontWeight: 600 }}
-                            >
-                              Retry
-                            </Button>
-                          )}
-                          <IconButton
-                            size="small"
-                            onClick={() => setError(null)}
-                            sx={{ color: "inherit" }}
-                          >
-                            <X size={18} />
-                          </IconButton>
-                        </Stack>
+                        <IconButton
+                          size="small"
+                          onClick={() => setError(null)}
+                          sx={{ color: "inherit" }}
+                        >
+                          <X size={18} />
+                        </IconButton>
                       }
                       sx={{ 
                         mb: 3,
@@ -427,27 +418,7 @@ export default function LiteraturePage() {
                         boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
                       }}
                     >
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                          {partialResults ? "⚠️ Partial Results Available" : "❌ Search Error"}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontSize: "0.875rem" }}>
-                          {error}
-                        </Typography>
-                        {retryCount > 0 && (
-                          <Typography 
-                            variant="caption" 
-                            sx={{ 
-                              mt: 1, 
-                              display: "block", 
-                              opacity: 0.8,
-                              fontStyle: "italic" 
-                            }}
-                          >
-                            Retry attempt: {retryCount}
-                          </Typography>
-                        )}
-                      </Box>
+                      {error}
                     </Alert>
                   </motion.div>
                 )}
@@ -503,25 +474,6 @@ export default function LiteraturePage() {
                             height: 32,
                           }}
                         />
-                        <Tooltip title="Cancel search" arrow>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={handleCancelSearch}
-                            startIcon={<X size={16} />}
-                            sx={{ 
-                              ml: 1,
-                              borderColor: "#ef4444",
-                              color: "#ef4444",
-                              "&:hover": {
-                                borderColor: "#dc2626",
-                                bgcolor: "rgba(239, 68, 68, 0.1)",
-                              }
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </Tooltip>
                       </Box>
                       <LinearProgress 
                         variant="determinate" 
@@ -560,19 +512,47 @@ export default function LiteraturePage() {
                       <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
                         Search Results
                       </Typography>
-                      <Chip 
-                        label={`${masterData.length} articles found`}
+                      <Badge 
+                        badgeContent={masterData.length} 
                         color="primary"
-                        sx={{ fontWeight: 600 }}
-                      />
-                      {partialResults && (
+                        max={9999}
+                        sx={{
+                          "& .MuiBadge-badge": {
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                          }
+                        }}
+                      >
                         <Chip 
-                          label="Partial Results"
-                          color="warning"
-                          size="small"
-                          icon={<AlertCircle size={14} />}
+                          label="Articles"
+                          sx={{ 
+                            bgcolor: "#e0e7ff",
+                            color: "#2563eb",
+                            fontWeight: 600,
+                          }}
                         />
-                      )}
+                      </Badge>
+                      
+                      {/* Filter Toggle */}
+                      <Tooltip title={uniqueOnly ? "Showing unique records only" : "Showing all records"}>
+                        <Chip
+                          icon={<Filter size={14} />}
+                          label={uniqueOnly ? "Unique Only" : "All Records"}
+                          onClick={() => setUniqueOnly(!uniqueOnly)}
+                          variant={uniqueOnly ? "filled" : "outlined"}
+                          color={uniqueOnly ? "primary" : "default"}
+                          sx={{ 
+                            cursor: "pointer",
+                            fontWeight: 600,
+                            "&:hover": {
+                              transform: "translateY(-2px)",
+                              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                            },
+                            transition: "all 0.2s ease",
+                          }}
+                        />
+                      </Tooltip>
+
                       <Tooltip 
                         title="Click any row to view complete article details"
                         arrow
@@ -590,24 +570,54 @@ export default function LiteraturePage() {
                       </Tooltip>
                     </Box>
                     
-                    <Button
-                      onClick={downloadExcel}
-                      startIcon={<Download size={18} />}
-                      variant="outlined"
-                      disabled={!excelBlob}
-                      sx={{
-                        borderRadius: 2,
-                        textTransform: "none",
-                        fontWeight: 600,
-                        borderWidth: 2,
-                        "&:hover": {
+                    {/* Export Button with Menu */}
+                    <Box>
+                      <Button
+                        onClick={handleExportClick}
+                        startIcon={<FileDown size={18} />}
+                        endIcon={<MoreVertical size={16} />}
+                        variant="outlined"
+                        sx={{
+                          borderRadius: 2,
+                          textTransform: "none",
+                          fontWeight: 600,
                           borderWidth: 2,
-                          transform: "translateY(-2px)",
-                        }
-                      }}
-                    >
-                      Download Excel
-                    </Button>
+                          "&:hover": {
+                            borderWidth: 2,
+                            transform: "translateY(-2px)",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                          },
+                          transition: "all 0.2s ease",
+                        }}
+                      >
+                        Export Results
+                      </Button>
+                      <Menu
+                        anchorEl={exportAnchor}
+                        open={exportMenuOpen}
+                        onClose={handleExportClose}
+                        PaperProps={{
+                          sx: {
+                            borderRadius: 2,
+                            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                            minWidth: 200,
+                          }
+                        }}
+                      >
+                        <MenuItem onClick={() => handleExport("unique")}>
+                          <CheckCircle size={16} style={{ marginRight: 8 }} />
+                          Unique Records
+                        </MenuItem>
+                        <MenuItem onClick={() => handleExport("all")}>
+                          <Database size={16} style={{ marginRight: 8 }} />
+                          All Records
+                        </MenuItem>
+                        <MenuItem onClick={() => handleExport("duplicates")}>
+                          <AlertCircle size={16} style={{ marginRight: 8 }} />
+                          Duplicates Only
+                        </MenuItem>
+                      </Menu>
+                    </Box>
                   </Box>
 
                   <Card 
@@ -650,6 +660,7 @@ export default function LiteraturePage() {
                 </motion.div>
               )}
 
+              {/* Empty State */}
               {masterData.length === 0 && !running && (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
@@ -706,29 +717,34 @@ export default function LiteraturePage() {
         </Container>
 
         <LiteraturePopup
-          open={open}
-          onClose={() => setOpen(false)}
-          file={file}
-          onFileUpload={handleUpload}
-          applyDateFilter={applyDateFilter}
-          setApplyDateFilter={setApplyDateFilter}
-          fromDate={fromDate}
-          setFromDate={setFromDate}
-          toDate={toDate}
-          setToDate={setToDate}
-          filters={filters}
-          setFilters={setFilters}
-          databases={databases}
-          setDatabases={setDatabases}
-          onSearch={handleSearch}
-          running={running}
-          progress={progress}
-        />
+  open={open}
+  onClose={() => setOpen(false)}
+  file={file}
+  onFileUpload={handleUpload}
+  onSearch={handleSearch}
+  running={running}
+  progress={progress}
+
+  applyDateFilter={applyDateFilter}
+  setApplyDateFilter={setApplyDateFilter}
+  fromDate={fromDate}
+  setFromDate={setFromDate}
+  toDate={toDate}
+  setToDate={setToDate}
+  filters={filters}
+  setFilters={setFilters}
+  databases={databases}
+  setDatabases={setDatabases}
+/>
+
 
         <LiteratureRecordModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
           record={selectedRecord}
+          onDelete={handleDeleteRecord}
+          onUpdate={loadExistingData}
+          projectId={PROJECT_ID}
         />
       </Box>
     </Layout>

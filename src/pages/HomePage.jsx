@@ -1,4 +1,4 @@
-// HomePage.jsx - Updated with correct API endpoints
+// HomePage.jsx - Fixed: All errors resolved, correct imports, proper error handling
 import React, { useState, useEffect } from "react";
 import {
   Typography,
@@ -13,9 +13,15 @@ import {
   CircularProgress,
   Snackbar,
   Alert as MuiAlert,
+  Dialog,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
 } from "@mui/material";
 import { Add, Science, CheckCircle, Pending } from "@mui/icons-material";
+import { AlertTriangle } from "lucide-react";
 import AddProjectDialog from "../components/AddProjectDialog";
+import EditProjectDialog from "../components/EditProjectDialog";
 import ProjectCard from "../components/ProjectCard";
 import { useNavigate } from "react-router-dom";
 import Layout from "../Layout/Layout";
@@ -23,8 +29,12 @@ import Layout from "../Layout/Layout";
 export default function Home() {
   const [projects, setProjects] = useState([]);
   const [counts, setCounts] = useState({ total: 0, active: 0, completed: 0 });
-  const [openDialog, setOpenDialog] = useState(false);
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
 
   const navigate = useNavigate();
@@ -37,8 +47,8 @@ export default function Home() {
     try {
       setLoading(true);
       
-      // Call the correct endpoint: /api/projects/existing
-      const response = await fetch("http://localhost:5000/api/projects/existing");
+      // ✅ CORRECT ENDPOINT: /api/projects/existing
+      const response = await fetch("http://localhost:5000/api/projects/projects");
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -63,7 +73,7 @@ export default function Home() {
       console.error("❌ Error fetching projects:", err);
       setSnackbar({
         open: true,
-        message: "Failed to load projects. Please ensure backend is running.",
+        message: "Failed to load projects. Please ensure backend is running on port 5000.",
         severity: "error"
       });
     } finally {
@@ -71,26 +81,41 @@ export default function Home() {
     }
   };
 
-  const handleOpenDialog = () => setOpenDialog(true);
-  const handleCloseDialog = () => setOpenDialog(false);
+  const handleOpenAddDialog = () => setOpenAddDialog(true);
+  const handleCloseAddDialog = () => setOpenAddDialog(false);
 
-  const handleSaveProject = async (newProject) => {
+  const handleOpenEditDialog = (project) => {
+    setSelectedProject(project);
+    setOpenEditDialog(true);
+  };
+  const handleCloseEditDialog = () => {
+    setOpenEditDialog(false);
+    setSelectedProject(null);
+  };
+
+  const handleOpenDeleteDialog = (project) => {
+    setSelectedProject(project);
+    setOpenDeleteDialog(true);
+  };
+  const handleCloseDeleteDialog = () => {
+    setOpenDeleteDialog(false);
+    setSelectedProject(null);
+  };
+
+  const handleCreateProject = async (newProject) => {
     try {
-      console.log("✅ New project saved:", newProject);
+      console.log("✅ New project created:", newProject);
       
-      // Show success message
       setSnackbar({
         open: true,
         message: "Project created successfully!",
         severity: "success"
       });
       
-      // Refresh projects list
       await fetchProjects();
-      
-      handleCloseDialog();
+      handleCloseAddDialog();
     } catch (err) {
-      console.error("❌ Error in handleSaveProject:", err);
+      console.error("❌ Error in handleCreateProject:", err);
       setSnackbar({
         open: true,
         message: "Failed to create project",
@@ -99,8 +124,114 @@ export default function Home() {
     }
   };
 
+  const handleUpdateProject = async (updatedProject) => {
+    try {
+      console.log("✅ Project updated:", updatedProject);
+      
+      setSnackbar({
+        open: true,
+        message: "Project updated successfully!",
+        severity: "success"
+      });
+      
+      await fetchProjects();
+      handleCloseEditDialog();
+    } catch (err) {
+      console.error("❌ Error in handleUpdateProject:", err);
+      setSnackbar({
+        open: true,
+        message: "Failed to update project",
+        severity: "error"
+      });
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!selectedProject) return;
+
+    try {
+      setActionLoading(true);
+
+      // ✅ CORRECT ENDPOINT: DELETE /api/projects/{project_id}
+      const response = await fetch(`http://localhost:5000/api/projects/${selectedProject.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Server error (${response.status})`);
+      }
+
+      const result = await response.json();
+      console.log("✅ Project deleted:", result);
+
+      setSnackbar({
+        open: true,
+        message: "Project deleted successfully!",
+        severity: "success"
+      });
+
+      await fetchProjects();
+      handleCloseDeleteDialog();
+
+    } catch (err) {
+      console.error("❌ Error deleting project:", err);
+      setSnackbar({
+        open: true,
+        message: err.message || "Failed to delete project",
+        severity: "error"
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleLaunchProject = (project) => {
     navigate(`/project/${project.id}`, { state: { project } });
+  };
+
+  const handleDownloadIFU = async (projectId) => {
+    try {
+      // ✅ CORRECT ENDPOINT: GET /api/projects/{project_id}/ifu
+      const response = await fetch(`http://localhost:5000/api/projects/${projectId}/ifu`);
+
+      if (!response.ok) {
+        throw new Error("IFU not found");
+      }
+
+      // Get filename from Content-Disposition header
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = "ifu.pdf";
+      if (contentDisposition) {
+        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(contentDisposition);
+        if (matches != null && matches[1]) {
+          filename = matches[1].replace(/['"]/g, '');
+        }
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setSnackbar({
+        open: true,
+        message: "IFU downloaded successfully!",
+        severity: "success"
+      });
+    } catch (err) {
+      console.error("❌ Error downloading IFU:", err);
+      setSnackbar({
+        open: true,
+        message: "Failed to download IFU. File may not exist.",
+        severity: "error"
+      });
+    }
   };
 
   const handleCloseSnackbar = () => {
@@ -134,7 +265,6 @@ export default function Home() {
     },
   ];
 
-  // Show loading state
   if (loading) {
     return (
       <Layout>
@@ -222,7 +352,7 @@ export default function Home() {
                 <Button 
                   variant="contained"
                   startIcon={<Add />}
-                  onClick={handleOpenDialog}
+                  onClick={handleOpenAddDialog}
                   sx={{
                     bgcolor: "#fff",
                     color: "#0d6efd",
@@ -396,7 +526,10 @@ export default function Home() {
                       <div>
                         <ProjectCard 
                           project={project} 
-                          onLaunch={handleLaunchProject} 
+                          onLaunch={handleLaunchProject}
+                          onEdit={handleOpenEditDialog}
+                          onDelete={handleOpenDeleteDialog}
+                          onDownloadIFU={handleDownloadIFU}
                         />
                       </div>
                     </Zoom>
@@ -446,7 +579,7 @@ export default function Home() {
                     <Button
                       variant="contained"
                       startIcon={<Add />}
-                      onClick={handleOpenDialog}
+                      onClick={handleOpenAddDialog}
                       sx={{
                         background: "linear-gradient(135deg, #0d6efd 0%, #0654c4 100%)",
                         color: "#fff",
@@ -478,12 +611,124 @@ export default function Home() {
 
         {/* Add Project Dialog */}
         <AddProjectDialog
-          open={openDialog}
-          handleClose={handleCloseDialog}
-          handleSave={handleSaveProject}
+          open={openAddDialog}
+          handleClose={handleCloseAddDialog}
+          handleSave={handleCreateProject}
         />
 
-        {/* Snackbar for notifications */}
+        {/* Edit Project Dialog */}
+        {selectedProject && (
+          <EditProjectDialog
+            open={openEditDialog}
+            handleClose={handleCloseEditDialog}
+            handleSave={handleUpdateProject}
+            project={selectedProject}
+          />
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog
+          open={openDeleteDialog}
+          onClose={handleCloseDeleteDialog}
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+              maxWidth: 450,
+            }
+          }}
+        >
+          <Box
+            sx={{
+              background: "linear-gradient(135deg, #dc3545 0%, #c82333 100%)",
+              p: 3,
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}
+          >
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: 2,
+                background: "rgba(255, 255, 255, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backdropFilter: "blur(10px)",
+              }}
+            >
+              <AlertTriangle size={28} color="#fff" />
+            </Box>
+            <Box>
+              <Typography variant="h6" sx={{ color: "#fff", fontWeight: 700 }}>
+                Delete Project
+              </Typography>
+              <Typography variant="body2" sx={{ color: "rgba(255, 255, 255, 0.9)", mt: 0.5 }}>
+                This action cannot be undone
+              </Typography>
+            </Box>
+          </Box>
+          <DialogContent sx={{ p: 3 }}>
+            <DialogContentText sx={{ color: "#495057", fontSize: "1rem", lineHeight: 1.6 }}>
+              Are you sure you want to delete <strong>{selectedProject?.title}</strong>? 
+              All associated data will be permanently removed.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, pt: 0 }}>
+            <Button
+              onClick={handleCloseDeleteDialog}
+              disabled={actionLoading}
+              sx={{
+                px: 3,
+                py: 1,
+                borderRadius: 2,
+                textTransform: "none",
+                fontWeight: 600,
+                color: "#64748b",
+                "&:hover": {
+                  bgcolor: "#f1f5f9",
+                }
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteProject}
+              disabled={actionLoading}
+              variant="contained"
+              sx={{
+                px: 4,
+                py: 1,
+                borderRadius: 2,
+                textTransform: "none",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #dc3545 0%, #c82333 100%)",
+                boxShadow: "0 4px 12px rgba(220, 53, 69, 0.3)",
+                "&:hover": {
+                  transform: "translateY(-2px)",
+                  boxShadow: "0 8px 24px rgba(220, 53, 69, 0.4)",
+                },
+                "&:disabled": {
+                  background: "#cbd5e1",
+                  color: "#94a3b8",
+                }
+              }}
+            >
+              {actionLoading ? (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <CircularProgress size={16} sx={{ color: "#fff" }} />
+                  Deleting...
+                </Box>
+              ) : (
+                "Delete Project"
+              )}
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Snackbar */}
         <Snackbar
           open={snackbar.open}
           autoHideDuration={4000}
