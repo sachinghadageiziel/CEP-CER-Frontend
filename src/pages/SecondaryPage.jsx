@@ -3,27 +3,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   FiUpload, FiEye, FiX, FiCheckCircle, FiLoader, FiSearch, 
-  FiCheck, FiSquare, FiCheckSquare, FiFilter 
+  FiCheck, FiSquare, FiCheckSquare, FiFilter, FiAlertCircle,
+  FiDownload, FiFileText
 } from "react-icons/fi";
 
-import Layout from "../Layout/Layout";
-import BreadcrumbsBar from "../components/BreadcrumbsBar";
-import PdfDownloadPopup from "../components/PdfDownloadPopup";
-import SecondaryPopup from "../components/SecondaryPopup";
-import DownloadedPdfPopup from "../components/DownloadedPdfPopup";
-
-/* -------------------- HELPERS -------------------- */
 const normalizePMID = (pmid) => String(pmid).replace(".0", "");
 
 export default function SecondaryPage() {
   const { id: projectId } = useParams();
   const navigate = useNavigate();
-
-  /* ---------- STATE ---------- */
-  const [openPdfUpload, setOpenPdfUpload] = useState(false);
-  const [openSecondary, setOpenSecondary] = useState(false);
-  const [excelFile, setExcelFile] = useState(null);
-  const [ifuFile, setIfuFile] = useState(null);
 
   const [pdfRows, setPdfRows] = useState([]);
   const [downloadedPdfs, setDownloadedPdfs] = useState([]);
@@ -35,73 +23,100 @@ export default function SecondaryPage() {
   const [search, setSearch] = useState("");
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
+  const [toastType, setToastType] = useState("success");
 
   const [activePdfUrl, setActivePdfUrl] = useState(null);
   const [showPdfList, setShowPdfList] = useState(false);
 
-  /* ---------- SELECTION STATE ---------- */
   const [selectedPMIDs, setSelectedPMIDs] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
-  /* ---------- PAGINATION ---------- */
   const [page, setPage] = useState(0);
   const pageSize = 10;
 
-  /* ---------- AUTO EXTRACT TEXT ---------- */
+  const [uploadingLiteratureId, setUploadingLiteratureId] = useState(null);
   const [hasAutoExtracted, setHasAutoExtracted] = useState(false);
 
-  /* ---------- LOAD EXISTING ---------- */
-  useEffect(() => {
-    fetch(
-      `http://localhost:5000/api/secondary/pdf-download/existing?project_id=${projectId}`
-    )
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.exists) {
-          setPdfRows(d.screening || []);
-          // Auto extract text after loading PDFs
-          if (!hasAutoExtracted && d.screening && d.screening.length > 0) {
-            autoExtractText();
-          }
-        }
-      });
+  // Progress tracking
+  const [downloadProgress, setDownloadProgress] = useState({
+    show: false,
+    current: 0,
+    total: 0,
+    status: ""
+  });
 
-    loadPdfList();
+  const showToastMessage = (message, type = "success") => {
+    setToastMessage(message);
+    setToastType(type);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 3000);
+  };
+
+  useEffect(() => {
+    if (projectId) {
+      loadPdfStatus();
+      loadPdfList();
+    }
   }, [projectId]);
 
-  /* ---------- AUTO EXTRACT TEXT FUNCTION ---------- */
+  const loadPdfStatus = async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/secondary/pdf-status/${projectId}`
+      );
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const data = await response.json();
+      
+      if (data.exists) {
+        setPdfRows(data.screening || []);
+        if (!hasAutoExtracted && data.screening && data.screening.length > 0) {
+          autoExtractText();
+        }
+      }
+    } catch (error) {
+      console.error("Error loading PDF status:", error);
+      showToastMessage("Error loading PDF status", "error");
+    }
+  };
+
   const autoExtractText = async () => {
     setLoadingText(true);
     setHasAutoExtracted(true);
 
-    const form = new FormData();
-    form.append("project_id", projectId);
-
     try {
-      await fetch("http://localhost:5000/api/secondary/pdf-to-text", {
-        method: "POST",
-        body: form,
-      });
+      const response = await fetch(
+        `http://localhost:5000/api/secondary/pdf-to-text/${projectId}`,
+        { method: "POST" }
+      );
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       setLoadingText(false);
-      setToastMessage("PDF text extracted successfully!");
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 1000);
+      showToastMessage("PDF text extracted successfully!");
     } catch (error) {
+      console.error("Error extracting text:", error);
       setLoadingText(false);
+      showToastMessage("Error extracting text from PDFs", "error");
     }
   };
 
-  /* ---------- LOAD PDF LIST ---------- */
   const loadPdfList = async () => {
-    const res = await fetch(
-      `http://localhost:5000/api/secondary/pdf-list?project_id=${projectId}`
-    );
-    const data = await res.json();
-    setDownloadedPdfs(data.pdfs || []);
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/secondary/pdf-list/${projectId}`
+      );
+      
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const data = await response.json();
+      setDownloadedPdfs(data.pdfs || []);
+    } catch (error) {
+      console.error("Error loading PDF list:", error);
+    }
   };
 
-  /* ---------- MAP PMID → FILENAME ---------- */
   const pdfFilenameMap = useMemo(() => {
     const map = {};
     downloadedPdfs.forEach((p) => {
@@ -110,7 +125,6 @@ export default function SecondaryPage() {
     return map;
   }, [downloadedPdfs]);
 
-  /* ---------- SELECTION LOGIC ---------- */
   const togglePMID = (pmid) => {
     const newSet = new Set(selectedPMIDs);
     if (newSet.has(pmid)) {
@@ -133,77 +147,130 @@ export default function SecondaryPage() {
     }
   };
 
-  /* ---------- API ACTIONS ---------- */
   const runPdfDownload = async () => {
     setLoadingPdf(true);
-
-    const form = new FormData();
-    form.append("project_id", projectId);
-    form.append("pmid_excel", excelFile);
-
-    await fetch("http://localhost:5000/api/secondary/pdf-download", {
-      method: "POST",
-      body: form,
+    setDownloadProgress({
+      show: true,
+      current: 0,
+      total: pdfRows.length,
+      status: "Initializing download..."
     });
 
-    const res = await fetch(
-      `http://localhost:5000/api/secondary/pdf-download/existing?project_id=${projectId}`
-    );
-    const data = await res.json();
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/secondary/pdf-download/${projectId}`,
+        { method: "POST" }
+      );
 
-    setPdfRows(data.screening || []);
-    loadPdfList();
-    setLoadingPdf(false);
-    setOpenPdfUpload(false);
-    
-    // Auto extract after upload
-    if (data.screening && data.screening.length > 0) {
-      autoExtractText();
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      // Simulate progress updates
+      for (let i = 0; i <= pdfRows.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+        setDownloadProgress({
+          show: true,
+          current: i,
+          total: pdfRows.length,
+          status: i === pdfRows.length ? "Download complete!" : `Downloading PDFs... (${i}/${pdfRows.length})`
+        });
+      }
+
+      await loadPdfStatus();
+      await loadPdfList();
+      
+      showToastMessage("PDF download completed successfully!");
+      
+      setTimeout(() => {
+        setDownloadProgress({ show: false, current: 0, total: 0, status: "" });
+      }, 2000);
+    } catch (error) {
+      console.error("Error downloading PDFs:", error);
+      showToastMessage("Error starting PDF download", "error");
+      setDownloadProgress({ show: false, current: 0, total: 0, status: "" });
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
+
+  const handleUploadPdf = async (literatureId, file) => {
+    setUploadingLiteratureId(literatureId);
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/secondary/upload-pdf/${projectId}/${literatureId}`,
+        { method: "POST", body: formData }
+      );
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+      await loadPdfStatus();
+      await loadPdfList();
+      
+      showToastMessage("PDF uploaded and text extracted successfully!");
+    } catch (error) {
+      console.error("Error uploading PDF:", error);
+      showToastMessage("Error uploading PDF", "error");
+    } finally {
+      setUploadingLiteratureId(null);
     }
   };
 
   const runSecondary = async () => {
     if (selectedPMIDs.size === 0) {
-      alert("Please select at least one PMID to process");
+      showToastMessage("Please select at least one article to process", "error");
       return;
     }
 
     setLoadingSecondary(true);
 
-    const form = new FormData();
-    form.append("project_id", projectId);
-    form.append("primary_excel", excelFile);
-    form.append("ifu_pdf", ifuFile);
-    form.append("selected_pmids", JSON.stringify([...selectedPMIDs]));
+    const formData = new FormData();
+    formData.append("selected_pmids", JSON.stringify([...selectedPMIDs]));
 
-    await fetch(
-      "http://localhost:5000/api/secondary/secondary-runner",
-      { method: "POST", body: form }
-    );
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/secondary/secondary-runner/${projectId}`,
+        { method: "POST", body: formData }
+      );
 
-    setLoadingSecondary(false);
-    setOpenSecondary(false);
-    navigate(`/projects/${projectId}/secondary/results`);
-  };
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to run secondary screening");
+      }
 
-  /* ---------- OPEN PDF ---------- */
-  const openPdf = async (filename) => {
-    const res = await fetch(
-      `http://localhost:5000/api/secondary/open-pdf?project_id=${projectId}&filename=${encodeURIComponent(
-        filename
-      )}`
-    );
-
-    if (!res.ok) {
-      alert("PDF not found on server");
-      return;
+      const result = await response.json();
+      
+      showToastMessage(`Successfully processed ${result.processed_articles} articles!`);
+      
+      setTimeout(() => {
+        navigate(`/projects/${projectId}/secondary/results`);
+      }, 1500);
+    } catch (error) {
+      console.error("Error running secondary screening:", error);
+      showToastMessage(error.message || "Error running secondary screening", "error");
+    } finally {
+      setLoadingSecondary(false);
     }
-
-    const blob = await res.blob();
-    setActivePdfUrl(URL.createObjectURL(blob));
   };
 
-  /* ---------- DERIVED ---------- */
+  const openPdf = async (filename) => {
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/secondary/open-pdf/${projectId}?filename=${encodeURIComponent(filename)}`
+      );
+
+      if (!response.ok) throw new Error("PDF not found on server");
+
+      const blob = await response.blob();
+      setActivePdfUrl(URL.createObjectURL(blob));
+    } catch (error) {
+      console.error("Error opening PDF:", error);
+      showToastMessage("Error opening PDF", "error");
+    }
+  };
+
   const filteredRows = useMemo(
     () =>
       pdfRows.filter(
@@ -221,84 +288,109 @@ export default function SecondaryPage() {
 
   const totalPages = Math.ceil(filteredRows.length / pageSize);
 
-  /* ---------- STATS ---------- */
   const stats = useMemo(() => {
     const selected = selectedPMIDs.size;
     const available = [...selectedPMIDs].filter(pmid => {
       const row = pdfRows.find(r => normalizePMID(r.PMID) === pmid);
-      return row && row.Status.toLowerCase().includes("available");
+      return row && (row.Status.toLowerCase().includes("available") || row.Status.toLowerCase().includes("uploaded"));
     }).length;
     const unavailable = selected - available;
 
     return { selected, available, unavailable };
   }, [selectedPMIDs, pdfRows]);
 
-  /* ---------- STATUS BADGE ---------- */
   const getStatusBadge = (status) => {
-    const isAvailable = status.toLowerCase().includes("available");
+    const isAvailable = status.toLowerCase().includes("available") || status.toLowerCase().includes("uploaded");
     return (
       <span
         className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
           isAvailable
             ? "bg-green-100 text-green-700"
-            : "bg-red-100 text-red-700"
+            : "bg-amber-100 text-amber-700"
         }`}
       >
-        {isAvailable ? <FiCheckCircle className="w-3 h-3" /> : null}
+        {isAvailable ? <FiCheckCircle className="w-3 h-3" /> : <FiAlertCircle className="w-3 h-3" />}
         {status}
       </span>
     );
   };
 
-  /* -------------------- UI -------------------- */
   return (
-    <Layout>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="p-6 space-y-6"
+        className="max-w-7xl mx-auto space-y-6"
       >
-        <BreadcrumbsBar
-          items={[{ label: "Home", to: "/" }, { label: "Secondary Screening" }]}
-        />
-
         {/* HEADER */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="flex justify-between items-center"
-        >
+        <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-slate-800">Secondary Screening</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Project ID: <span className="font-medium text-slate-700">{projectId}</span>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Secondary Screening
+            </h1>
+            <p className="text-sm text-slate-500 mt-2">
+              Project ID: <span className="font-semibold text-slate-700">{projectId}</span>
             </p>
           </div>
 
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => setOpenPdfUpload(true)}
-            className="h-11 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 rounded-lg text-sm font-medium shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all"
+            onClick={runPdfDownload}
+            disabled={loadingPdf}
+            className="h-12 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 rounded-xl text-sm font-semibold shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all disabled:opacity-50"
           >
-            <FiUpload className="w-4 h-4" /> Upload PMID Excel
+            {loadingPdf ? (
+              <FiLoader className="w-5 h-5 animate-spin" />
+            ) : (
+              <FiDownload className="w-5 h-5" />
+            )}
+            {loadingPdf ? "Downloading..." : "Download PDFs"}
           </motion.button>
-        </motion.div>
+        </div>
 
-        {/* PROCESSING STATUS */}
+        {/* DOWNLOAD PROGRESS BAR */}
+        <AnimatePresence>
+          {downloadProgress.show && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-white border border-blue-200 rounded-xl p-6 shadow-lg"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-slate-700">{downloadProgress.status}</span>
+                <span className="text-sm font-mono text-slate-600">
+                  {downloadProgress.current}/{downloadProgress.total}
+                </span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ 
+                    width: `${(downloadProgress.current / downloadProgress.total) * 100}%` 
+                  }}
+                  transition={{ duration: 0.3 }}
+                  className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* TEXT EXTRACTION STATUS */}
         <AnimatePresence>
           {loadingText && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center gap-3"
+              className="bg-blue-50 border border-blue-200 rounded-xl p-5 flex items-center gap-3"
             >
-              <FiLoader className="w-5 h-5 text-blue-600 animate-spin" />
+              <FiFileText className="w-6 h-6 text-blue-600 animate-pulse" />
               <span className="text-sm font-medium text-blue-900">
-                Processing PDF text extraction...
+                Extracting text from PDFs...
               </span>
             </motion.div>
           )}
@@ -311,44 +403,44 @@ export default function SecondaryPage() {
             animate={{ opacity: 1, y: 0 }}
             className="grid grid-cols-3 gap-4"
           >
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-blue-700">Selected</p>
-                  <p className="text-2xl font-bold text-blue-900 mt-1">
+                  <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Selected</p>
+                  <p className="text-3xl font-bold text-blue-900 mt-1">
                     {stats.selected}
                   </p>
                 </div>
-                <div className="p-2 bg-blue-200 rounded-lg">
-                  <FiCheckSquare className="w-5 h-5 text-blue-700" />
+                <div className="p-3 bg-blue-200 rounded-xl">
+                  <FiCheckSquare className="w-6 h-6 text-blue-700" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-4">
+            <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-green-700">Available PDFs</p>
-                  <p className="text-2xl font-bold text-green-900 mt-1">
+                  <p className="text-xs font-semibold text-green-700 uppercase tracking-wide">Available PDFs</p>
+                  <p className="text-3xl font-bold text-green-900 mt-1">
                     {stats.available}
                   </p>
                 </div>
-                <div className="p-2 bg-green-200 rounded-lg">
-                  <FiCheckCircle className="w-5 h-5 text-green-700" />
+                <div className="p-3 bg-green-200 rounded-xl">
+                  <FiCheckCircle className="w-6 h-6 text-green-700" />
                 </div>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-4">
+            <div className="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-xl p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-amber-700">Unavailable</p>
-                  <p className="text-2xl font-bold text-amber-900 mt-1">
+                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Unavailable</p>
+                  <p className="text-3xl font-bold text-amber-900 mt-1">
                     {stats.unavailable}
                   </p>
                 </div>
-                <div className="p-2 bg-amber-200 rounded-lg">
-                  <FiFilter className="w-5 h-5 text-amber-700" />
+                <div className="p-3 bg-amber-200 rounded-xl">
+                  <FiFilter className="w-6 h-6 text-amber-700" />
                 </div>
               </div>
             </div>
@@ -356,18 +448,13 @@ export default function SecondaryPage() {
         )}
 
         {/* ACTION TOOLBAR */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm"
-        >
-          <div className="grid grid-cols-[1fr_auto_auto] gap-4 items-center">
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+          <div className="grid grid-cols-[1fr_auto] gap-4 items-center">
             <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
               <input
-                className="w-full h-11 border border-slate-300 pl-10 pr-4 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                placeholder="Search PMID or Status..."
+                className="w-full h-12 border-2 border-slate-300 pl-12 pr-4 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="Search by Article ID or Status..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -376,36 +463,32 @@ export default function SecondaryPage() {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setShowPdfList(true)}
-              className="h-11 border border-slate-300 px-5 rounded-lg text-sm font-medium hover:bg-slate-50 hover:border-slate-400 transition-all"
+              onClick={runSecondary}
+              disabled={selectedPMIDs.size === 0 || loadingSecondary}
+              className="h-12 bg-gradient-to-r from-green-600 to-green-700 text-white px-8 rounded-xl text-sm font-semibold shadow-lg shadow-green-500/30 hover:shadow-xl hover:shadow-green-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
             >
-              View Downloaded PDFs
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setOpenSecondary(true)}
-              disabled={selectedPMIDs.size === 0}
-              className="h-11 bg-gradient-to-r from-green-600 to-green-700 text-white px-6 rounded-lg text-sm font-medium shadow-lg shadow-green-500/30 hover:shadow-xl hover:shadow-green-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Run Secondary Screening ({selectedPMIDs.size})
+              {loadingSecondary ? (
+                <>
+                  <FiLoader className="w-5 h-5 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <FiCheck className="w-5 h-5" />
+                  Run Screening ({selectedPMIDs.size})
+                </>
+              )}
             </motion.button>
           </div>
-        </motion.div>
+        </div>
 
         {/* TABLE */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
-        >
-          <div className="px-6 py-4 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 flex items-center justify-between">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-6 py-5 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-800">PDF Availability Status</h2>
+              <h2 className="text-xl font-bold text-slate-800">PDF Status</h2>
               <p className="text-xs text-slate-500 mt-1">
-                Showing {paginatedRows.length} of {filteredRows.length} entries
+                {paginatedRows.length} of {filteredRows.length} entries
               </p>
             </div>
             
@@ -413,7 +496,7 @@ export default function SecondaryPage() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={toggleSelectAll}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all"
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-all shadow-md"
             >
               {selectAll ? <FiCheckSquare className="w-4 h-4" /> : <FiSquare className="w-4 h-4" />}
               {selectAll ? "Deselect All" : "Select All"}
@@ -422,18 +505,18 @@ export default function SecondaryPage() {
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-slate-50 border-b-2 border-slate-200">
                 <tr>
-                  <th className="px-6 py-4 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider w-20">
+                  <th className="px-6 py-4 text-center text-xs font-bold text-slate-700 uppercase tracking-wider w-16">
                     Select
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    PMID
+                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Article ID
                   </th>
-                  <th className="px-6 py-4 text-center text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-center text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  <th className="px-6 py-4 text-right text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -443,6 +526,7 @@ export default function SecondaryPage() {
                   const pmid = normalizePMID(row.PMID);
                   const filename = pdfFilenameMap[pmid];
                   const isSelected = selectedPMIDs.has(pmid);
+                  const isUploading = uploadingLiteratureId === row.literature_id;
 
                   return (
                     <tr
@@ -456,7 +540,7 @@ export default function SecondaryPage() {
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => togglePMID(pmid)}
-                          className="inline-flex items-center justify-center w-5 h-5"
+                          className="inline-flex items-center justify-center"
                         >
                           {isSelected ? (
                             <FiCheckSquare className="w-5 h-5 text-blue-600" />
@@ -466,26 +550,58 @@ export default function SecondaryPage() {
                         </motion.button>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-blue-600 font-semibold">{pmid}</span>
+                        <span className="text-slate-800 font-semibold">{row.article_id || "-"}</span>
                       </td>
                       <td className="px-6 py-4 text-center">
                         {getStatusBadge(row.Status)}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {filename ? (
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => openPdf(filename)}
-                            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                          >
-                            <FiEye className="w-4 h-4" /> View PDF
-                          </motion.button>
-                        ) : (
-                          <span className="text-slate-400 text-sm italic">
-                            Not available
-                          </span>
-                        )}
+                        <div className="flex items-center justify-end gap-3">
+                          {filename ? (
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => openPdf(filename)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-all shadow-sm"
+                            >
+                              <FiEye className="w-4 h-4" /> View
+                            </motion.button>
+                          ) : (
+                            <>
+                              <input
+                                type="file"
+                                accept=".pdf"
+                                id={`upload-${row.literature_id}`}
+                                className="hidden"
+                                onChange={(e) => {
+                                  if (e.target.files[0]) {
+                                    handleUploadPdf(row.literature_id, e.target.files[0]);
+                                  }
+                                }}
+                              />
+                              <label
+                                htmlFor={`upload-${row.literature_id}`}
+                                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all shadow-sm ${
+                                  isUploading
+                                    ? "bg-blue-100 text-blue-700 cursor-not-allowed"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                }`}
+                              >
+                                {isUploading ? (
+                                  <>
+                                    <FiLoader className="w-4 h-4 animate-spin" />
+                                    Uploading...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FiUpload className="w-4 h-4" />
+                                    Upload
+                                  </>
+                                )}
+                              </label>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -506,7 +622,7 @@ export default function SecondaryPage() {
               >
                 Previous
               </motion.button>
-              <span className="text-sm text-slate-600">
+              <span className="text-sm font-semibold text-slate-600">
                 Page {page + 1} of {totalPages}
               </span>
               <motion.button
@@ -520,14 +636,7 @@ export default function SecondaryPage() {
               </motion.button>
             </div>
           )}
-        </motion.div>
-
-        <DownloadedPdfPopup
-          open={showPdfList}
-          pdfs={downloadedPdfs}
-          onClose={() => setShowPdfList(false)}
-          onView={openPdf}
-        />
+        </div>
 
         {/* PDF VIEWER */}
         <AnimatePresence>
@@ -545,17 +654,17 @@ export default function SecondaryPage() {
                 exit={{ scale: 0.9, opacity: 0 }}
                 transition={{ type: "spring", duration: 0.5 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white w-full max-w-6xl h-[90vh] rounded-xl shadow-2xl overflow-hidden"
+                className="bg-white w-full max-w-6xl h-[90vh] rounded-2xl shadow-2xl overflow-hidden"
               >
                 <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 bg-slate-50">
-                  <span className="font-semibold text-slate-800">PDF Viewer</span>
+                  <span className="font-bold text-slate-800 text-lg">PDF Viewer</span>
                   <motion.button
                     whileHover={{ scale: 1.1, rotate: 90 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => setActivePdfUrl(null)}
                     className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
                   >
-                    <FiX className="w-5 h-5" />
+                    <FiX className="w-6 h-6" />
                   </motion.button>
                 </div>
                 <iframe
@@ -575,34 +684,22 @@ export default function SecondaryPage() {
               initial={{ opacity: 0, y: 50, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 50, scale: 0.9 }}
-              className="fixed bottom-6 right-6 bg-gradient-to-r from-green-600 to-green-700 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3"
+              className={`fixed bottom-6 right-6 ${
+                toastType === "success"
+                  ? "bg-gradient-to-r from-green-600 to-green-700"
+                  : "bg-gradient-to-r from-red-600 to-red-700"
+              } text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 z-50`}
             >
-              <FiCheckCircle className="w-5 h-5" />
-              <span className="font-medium">{toastMessage}</span>
+              {toastType === "success" ? (
+                <FiCheckCircle className="w-6 h-6" />
+              ) : (
+                <FiAlertCircle className="w-6 h-6" />
+              )}
+              <span className="font-semibold">{toastMessage}</span>
             </motion.div>
           )}
         </AnimatePresence>
-
-        <PdfDownloadPopup
-          open={openPdfUpload}
-          onClose={() => setOpenPdfUpload(false)}
-          excelFile={excelFile}
-          onExcelUpload={(e) => setExcelFile(e.target.files[0])}
-          onSearch={runPdfDownload}
-          running={loadingPdf}
-        />
-
-        <SecondaryPopup
-          open={openSecondary}
-          onClose={() => setOpenSecondary(false)}
-          excelFile={excelFile}
-          ifuFile={ifuFile}
-          onExcelUpload={(e) => setExcelFile(e.target.files[0])}
-          onIfuUpload={(e) => setIfuFile(e.target.files[0])}
-          onRun={runSecondary}
-          loading={loadingSecondary}
-        />
       </motion.div>
-    </Layout>
+    </div>
   );
 }

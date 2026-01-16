@@ -1,7 +1,7 @@
+import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle, XCircle, Search, Filter } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Box, TextField, InputAdornment, Chip } from "@mui/material";
+import { CheckCircle, XCircle, Search, Filter, Eye, Trash2, Clock } from "lucide-react";
+import { Box, TextField, InputAdornment, Chip, IconButton, Tooltip } from "@mui/material";
 import Badge from "./Badge";
 
 const container = {
@@ -21,6 +21,7 @@ export default function ResultTable({
   rows = [],
   onRowClick,
   onDecisionChange,
+  onDelete,
 }) {
   const [query, setQuery] = useState("");
 
@@ -29,14 +30,20 @@ export default function ResultTable({
     return rows.filter(
       (r) =>
         r.PMID?.toString().includes(query) ||
-        r.Title?.toLowerCase().includes(query.toLowerCase()) ||
-        r.Abstract?.toLowerCase().includes(query.toLowerCase())
+        r.literature_id?.toString().includes(query) ||
+        r.article_id?.toString().includes(query) ||
+        r.Decision?.toLowerCase().includes(query.toLowerCase()) ||
+        r.decision?.toLowerCase().includes(query.toLowerCase()) ||
+        r.ExclusionCriteria?.toLowerCase().includes(query.toLowerCase()) ||
+        r.exclusion_criteria?.toLowerCase().includes(query.toLowerCase()) ||
+        r.Rationale?.toLowerCase().includes(query.toLowerCase()) ||
+        r.rationale?.toLowerCase().includes(query.toLowerCase())
     );
   }, [rows, query]);
 
   return (
     <Box sx={{ width: "100%" }}>
-      {/* SEARCH BAR - Separated from table */}
+      {/* SEARCH BAR */}
       <Box 
         sx={{ 
           p: 3,
@@ -46,7 +53,7 @@ export default function ResultTable({
       >
         <TextField
           fullWidth
-          placeholder="Search by PMID, title, or abstract..."
+          placeholder="Search by PMID, decision, exclusion criteria, or rationale..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           InputProps={{
@@ -96,7 +103,9 @@ export default function ResultTable({
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: "1.5fr 4fr 1.5fr 1.5fr",
+              gridTemplateColumns: onDelete 
+                ? "1fr 1.2fr 1.5fr 1.5fr 2fr 120px" 
+                : "1fr 1.2fr 1.5fr 1.5fr 2fr",
               gap: 2,
               px: 3,
               py: 2,
@@ -128,17 +137,6 @@ export default function ResultTable({
                 letterSpacing: 0.5,
               }}
             >
-              Title / Abstract
-            </Box>
-            <Box
-              sx={{
-                fontSize: "0.75rem",
-                fontWeight: 700,
-                color: "#64748b",
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}
-            >
               Decision
             </Box>
             <Box
@@ -150,18 +148,55 @@ export default function ResultTable({
                 letterSpacing: 0.5,
               }}
             >
-              Category
+              Exclusion Criteria
             </Box>
+            <Box
+              sx={{
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                color: "#64748b",
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+              }}
+            >
+              Rationale
+            </Box>
+            <Box
+              sx={{
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                color: "#64748b",
+                textTransform: "uppercase",
+                letterSpacing: 0.5,
+              }}
+            >
+              Abstract
+            </Box>
+            {onDelete && (
+              <Box
+                sx={{
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  color: "#64748b",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                  textAlign: "center",
+                }}
+              >
+                Actions
+              </Box>
+            )}
           </Box>
 
           {/* ROWS */}
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
             {filteredRows.map((row) => (
               <Row
-                key={row.id ?? row.PMID}
+                key={row.id ?? row.PMID ?? row.literature_id ?? row.article_id}
                 row={row}
                 onRowClick={onRowClick}
                 onDecisionChange={onDecisionChange}
+                onDelete={onDelete}
               />
             ))}
           </Box>
@@ -191,23 +226,33 @@ export default function ResultTable({
   );
 }
 
-function Row({ row, onRowClick, onDecisionChange }) {
-  const [decision, setDecision] = useState(row.Decision);
+function Row({ row, onRowClick, onDecisionChange, onDelete }) {
+  // Normalize decision value to match MenuItem values (Include/Exclude)
+  const normalizedDecision = row.Decision || row.decision 
+    ? String(row.Decision || row.decision).charAt(0).toUpperCase() + 
+      String(row.Decision || row.decision).slice(1).toLowerCase()
+    : "Pending";
+    
+  const [decision, setDecision] = useState(normalizedDecision);
   const [isHovered, setIsHovered] = useState(false);
+
+  const pmid = row.PMID || row.literature_id || row.article_id;
+  const exclusionCriteria = row.ExclusionCriteria || row.exclusion_criteria;
+  const rationale = row.Rationale || row.rationale;
+  const abstract = row.abstract || row.Abstract;
 
   const toggleDecision = () => {
     const next = decision === "Include" ? "Exclude" : "Include";
     setDecision(next);
-    onDecisionChange?.(row.PMID, next);
+    onDecisionChange?.(pmid, next);
   };
 
   return (
     <motion.div
       variants={rowVariant}
-      whileHover={{ scale: 1.01 }}
+      whileHover={{ scale: 1.005 }}
       onHoverStart={() => setIsHovered(true)}
       onHoverEnd={() => setIsHovered(false)}
-      onClick={() => onRowClick(row)}
       style={{
         cursor: "pointer",
       }}
@@ -215,7 +260,9 @@ function Row({ row, onRowClick, onDecisionChange }) {
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: "1.5fr 4fr 1.5fr 1.5fr",
+          gridTemplateColumns: onDelete 
+            ? "1fr 1.2fr 1.5fr 1.5fr 2fr 120px" 
+            : "1fr 1.2fr 1.5fr 1.5fr 2fr",
           gap: 2,
           p: 3,
           bgcolor: isHovered ? "#f8fafc" : "#fff",
@@ -229,7 +276,10 @@ function Row({ row, onRowClick, onDecisionChange }) {
         }}
       >
         {/* PMID */}
-        <Box sx={{ display: "flex", alignItems: "center" }}>
+        <Box 
+          sx={{ display: "flex", alignItems: "center" }}
+          onClick={() => onRowClick?.(row)}
+        >
           <Box
             sx={{
               px: 2,
@@ -242,40 +292,7 @@ function Row({ row, onRowClick, onDecisionChange }) {
               fontFamily: "monospace",
             }}
           >
-            {row.PMID}
-          </Box>
-        </Box>
-
-        {/* Title/Abstract */}
-        <Box>
-          {row.Title && (
-            <Box
-              sx={{
-                fontSize: "0.875rem",
-                fontWeight: 600,
-                color: "#1e293b",
-                mb: 0.5,
-                display: "-webkit-box",
-                WebkitLineClamp: 1,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }}
-            >
-              {row.Title}
-            </Box>
-          )}
-          <Box
-            sx={{
-              fontSize: "0.813rem",
-              color: "#64748b",
-              lineHeight: 1.5,
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {row.Abstract || "No abstract available"}
+            {pmid}
           </Box>
         </Box>
 
@@ -296,20 +313,127 @@ function Row({ row, onRowClick, onDecisionChange }) {
               <Badge color="green">
                 <CheckCircle size={14} /> Include
               </Badge>
-            ) : (
+            ) : decision === "Exclude" ? (
               <Badge color="red">
                 <XCircle size={14} /> Exclude
+              </Badge>
+            ) : (
+              <Badge color="orange">
+                <Clock size={14} /> Pending
               </Badge>
             )}
           </motion.div>
         </Box>
 
-        {/* CATEGORY */}
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <Badge color={row.Category === "SOTA" ? "violet" : "orange"}>
-            {row.Category || "N/A"}
-          </Badge>
+        {/* EXCLUSION CRITERIA */}
+        <Box 
+          sx={{ display: "flex", alignItems: "center" }}
+          onClick={() => onRowClick?.(row)}
+        >
+          <Box
+            sx={{
+              fontSize: "0.813rem",
+              color: "#475569",
+              lineHeight: 1.5,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {exclusionCriteria || "—"}
+          </Box>
         </Box>
+
+        {/* RATIONALE */}
+        <Box 
+          sx={{ display: "flex", alignItems: "center" }}
+          onClick={() => onRowClick?.(row)}
+        >
+          <Box
+            sx={{
+              fontSize: "0.813rem",
+              color: "#475569",
+              lineHeight: 1.5,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {rationale || "—"}
+          </Box>
+        </Box>
+
+        {/* ABSTRACT */}
+        <Box 
+          sx={{ display: "flex", alignItems: "center" }}
+          onClick={() => onRowClick?.(row)}
+        >
+          <Box
+            sx={{
+              fontSize: "0.813rem",
+              color: "#475569",
+              lineHeight: 1.5,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {abstract || "—"}
+          </Box>
+        </Box>
+
+        {/* ACTIONS */}
+        {onDelete && (
+          <Box 
+            sx={{ 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              gap: 1,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Tooltip title="View details">
+              <IconButton
+                size="small"
+                onClick={() => onRowClick?.(row)}
+                sx={{
+                  bgcolor: "#f1f5f9",
+                  "&:hover": { 
+                    bgcolor: "#e2e8f0",
+                    transform: "scale(1.1)",
+                  },
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <Eye size={16} />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Delete record">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(pmid);
+                }}
+                sx={{
+                  bgcolor: "#fef2f2",
+                  color: "#ef4444",
+                  "&:hover": { 
+                    bgcolor: "#fee2e2",
+                    transform: "scale(1.1)",
+                  },
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <Trash2 size={16} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
       </Box>
     </motion.div>
   );

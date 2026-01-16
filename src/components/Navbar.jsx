@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   AppBar, 
   Toolbar, 
@@ -18,7 +18,7 @@ import {
   MenuItem,
   Divider,
   Chip,
-  Fade, // ADDED THIS IMPORT
+  Fade,
 } from "@mui/material";
 import {
   Menu as MenuIcon,
@@ -29,21 +29,129 @@ import {
   LogOut,
   UserCircle,
   ChevronDown,
+  Sparkles,
+  Shield,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useMsal } from '@azure/msal-react';
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import MicrosoftLoginModal from "./Microsoftloginmodal.jsx";
 
-// Microsoft Logo Component
 const MicrosoftLogo = ({ size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <svg width={size} height={size} viewBox="0 0 21 21" fill="none">
     <rect width="10" height="10" fill="#F25022"/>
     <rect x="11" width="10" height="10" fill="#7FBA00"/>
     <rect y="11" width="10" height="10" fill="#00A4EF"/>
     <rect x="11" y="11" width="10" height="10" fill="#FFB900"/>
   </svg>
 );
+
+const PremiumMicrosoftButton = ({ onClick }) => {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <motion.div
+      onHoverStart={() => setHovered(true)}
+      onHoverEnd={() => setHovered(false)}
+      whileHover={{ scale: 1.03 }}
+      whileTap={{ scale: 0.97 }}
+    >
+      <Button
+        onClick={onClick}
+        sx={{
+          position: 'relative',
+          overflow: 'hidden',
+          bgcolor: '#fff',
+          color: '#1a1a1a',
+          fontWeight: 700,
+          borderRadius: 3.5,
+          px: 4.5,
+          py: 1.5,
+          textTransform: 'none',
+          fontSize: '0.95rem',
+          boxShadow: '0 6px 24px rgba(255, 255, 255, 0.35), inset 0 1px 0 rgba(255,255,255,0.9)',
+          border: '2.5px solid rgba(255, 255, 255, 0.95)',
+          transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            bgcolor: '#ffffff',
+            boxShadow: '0 10px 40px rgba(255, 255, 255, 0.5), 0 0 0 3px rgba(37, 99, 235, 0.15)',
+            border: '2.5px solid #fff',
+            transform: 'translateY(-1px)',
+          },
+          '&::before': {
+            content: '""',
+            position: 'absolute',
+            top: 0,
+            left: '-100%',
+            width: '100%',
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.08), transparent)',
+            transition: 'left 0.5s ease',
+          },
+          '&:hover::before': {
+            left: '100%',
+          },
+        }}
+      >
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 2,
+          position: 'relative',
+          zIndex: 1,
+        }}>
+          <motion.div
+            animate={{
+              rotate: hovered ? 360 : 0,
+            }}
+            transition={{ duration: 0.5, ease: "easeInOut" }}
+          >
+            <MicrosoftLogo size={22} />
+          </motion.div>
+          
+          <Typography sx={{ 
+            fontWeight: 700, 
+            fontSize: '0.95rem',
+            lineHeight: 1,
+            color: '#1a1a1a',
+          }}>
+            Sign in with Microsoft
+          </Typography>
+
+          <motion.div
+            animate={{
+              x: hovered ? 5 : 0,
+              opacity: hovered ? 1 : 0.7,
+            }}
+            transition={{ duration: 0.3 }}
+          >
+            <Sparkles size={16} color="#2563eb" />
+          </motion.div>
+        </Box>
+
+        {/* Subtle shimmer effect */}
+        <AnimatePresence>
+          {hovered && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.15 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'radial-gradient(circle at center, rgba(37, 99, 235, 0.1) 0%, transparent 70%)',
+                pointerEvents: 'none',
+              }}
+            />
+          )}
+        </AnimatePresence>
+      </Button>
+    </motion.div>
+  );
+};
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -53,10 +161,19 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
 
   const { instance, accounts } = useMsal();
   const isAuthenticated = accounts.length > 0;
   const account = accounts[0];
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const navItems = [
     { label: "Home", path: "/", icon: Home },
@@ -338,12 +455,17 @@ export default function Navbar() {
   return (
     <>
       <AppBar 
-        position="static" 
-        elevation={0}
+        position="sticky" 
+        elevation={scrolled ? 3 : 0}
         sx={{ 
-          background: "linear-gradient(180deg, #0d6efd 0%, #1976fd 100%)",
-          backdropFilter: "blur(20px)",
-          boxShadow: "0 4px 24px rgba(13, 110, 253, 0.2)",
+          background: scrolled 
+            ? "linear-gradient(180deg, rgba(13, 110, 253, 0.97) 0%, rgba(25, 118, 253, 0.97) 100%)"
+            : "linear-gradient(180deg, #0d6efd 0%, #1976fd 100%)",
+          backdropFilter: scrolled ? "blur(20px)" : "blur(10px)",
+          boxShadow: scrolled 
+            ? "0 6px 24px rgba(13, 110, 253, 0.25)"
+            : "0 4px 20px rgba(13, 110, 253, 0.2)",
+          transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
         <Toolbar
@@ -352,7 +474,8 @@ export default function Navbar() {
             justifyContent: "space-between",
             alignItems: "center",
             px: { xs: 2, sm: 4 },
-            py: 1.8,
+            py: scrolled ? 1.3 : 1.8,
+            transition: 'padding 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
           }}
         >
           <motion.div
@@ -431,6 +554,7 @@ export default function Navbar() {
                       borderColor: location.pathname === item.path ? "rgba(255, 255, 255, 0.4)" : "transparent",
                       backdropFilter: location.pathname === item.path ? "blur(10px)" : "none",
                       boxShadow: location.pathname === item.path ? "0 4px 12px rgba(0,0,0,0.1)" : "none",
+                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                       "&:hover": {
                         bgcolor: "rgba(255, 255, 255, 0.2)",
                         color: "#fff",
@@ -450,10 +574,17 @@ export default function Navbar() {
             {!isMobile && (
               <>
                 {isAuthenticated ? (
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.98 }}>
+                  <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
                     <Button
                       onClick={handleProfileMenuOpen}
-                      endIcon={<ChevronDown size={16} />}
+                      endIcon={
+                        <motion.div
+                          animate={{ rotate: Boolean(anchorEl) ? 180 : 0 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <ChevronDown size={16} />
+                        </motion.div>
+                      }
                       sx={{
                         bgcolor: "rgba(255, 255, 255, 0.25)",
                         border: "2px solid rgba(255, 255, 255, 0.4)",
@@ -465,6 +596,7 @@ export default function Navbar() {
                         textTransform: "none",
                         fontWeight: 700,
                         boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         "&:hover": {
                           bgcolor: "rgba(255, 255, 255, 0.35)",
                           boxShadow: "0 6px 16px rgba(0,0,0,0.15)",
@@ -563,8 +695,10 @@ export default function Navbar() {
                           mx: 1,
                           my: 0.5,
                           borderRadius: 2,
+                          transition: 'all 0.2s ease',
                           "&:hover": {
                             bgcolor: "#f8f9fa",
+                            transform: 'translateX(4px)',
                           }
                         }}
                       >
@@ -583,8 +717,10 @@ export default function Navbar() {
                           my: 0.5,
                           borderRadius: 2,
                           color: "#dc3545",
+                          transition: 'all 0.2s ease',
                           "&:hover": {
                             bgcolor: "rgba(220, 53, 69, 0.1)",
+                            transform: 'translateX(4px)',
                           }
                         }}
                       >
@@ -594,36 +730,16 @@ export default function Navbar() {
                     </Menu>
                   </motion.div>
                 ) : (
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      onClick={handleLoginModalOpen}
-                      sx={{
-                        bgcolor: "#fff",
-                        color: "#0d6efd",
-                        fontWeight: 700,
-                        borderRadius: 3,
-                        px: 4,
-                        py: 1.3,
-                        textTransform: "none",
-                        boxShadow: "0 4px 16px rgba(255, 255, 255, 0.3)",
-                        border: "2px solid #fff",
-                        "&:hover": {
-                          bgcolor: "#f8f9fa",
-                          color: "#0654c4",
-                          boxShadow: "0 8px 24px rgba(255, 255, 255, 0.4)",
-                        },
-                      }}
-                    >
-                      <MicrosoftLogo size={20} />
-                      <Box sx={{ ml: 1.5 }}>Sign in with Microsoft</Box>
-                    </Button>
-                  </motion.div>
+                  <PremiumMicrosoftButton onClick={handleLoginModalOpen} />
                 )}
               </>
             )}
 
             {isMobile && (
-              <motion.div whileHover={{ rotate: 90 }} whileTap={{ scale: 0.9 }}>
+              <motion.div 
+                animate={{ rotate: mobileOpen ? 90 : 0 }}
+                transition={{ duration: 0.3 }}
+              >
                 <IconButton
                   color="inherit"
                   aria-label="open drawer"
@@ -633,6 +749,7 @@ export default function Navbar() {
                     color: "#fff",
                     bgcolor: "rgba(255, 255, 255, 0.2)",
                     border: "2px solid rgba(255, 255, 255, 0.3)",
+                    transition: 'all 0.3s ease',
                     "&:hover": {
                       bgcolor: "rgba(255, 255, 255, 0.3)",
                     },

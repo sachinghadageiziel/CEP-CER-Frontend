@@ -1,57 +1,54 @@
-import { motion } from "framer-motion";
+import React from "react";
+import { Box } from "@mui/material";
 
-const COLORS = {
+const colorMap = {
   green: {
-    bg: "linear-gradient(135deg, #10b981 0%, #22c55e 100%)",
-    text: "#fff",
-    shadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+    background: "linear-gradient(135deg, #10b981 0%, #22c55e 100%)",
+    color: "#fff",
   },
   red: {
-    bg: "linear-gradient(135deg, #ef4444 0%, #f59e0b 100%)",
-    text: "#fff",
-    shadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
-  },
-  violet: {
-    bg: "linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%)",
-    text: "#fff",
-    shadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+    background: "linear-gradient(135deg, #ef4444 0%, #f87171 100%)",
+    color: "#fff",
   },
   orange: {
-    bg: "linear-gradient(135deg, #f59e0b 0%, #eab308 100%)",
-    text: "#fff",
-    shadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
+    background: "linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)",
+    color: "#fff",
+  },
+  violet: {
+    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    color: "#fff",
   },
   blue: {
-    bg: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-    text: "#fff",
-    shadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
+    background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+    color: "#fff",
   },
 };
 
 export default function Badge({ color = "blue", children }) {
-  const style = COLORS[color] || COLORS.blue;
+  const style = colorMap[color] || colorMap.blue;
 
   return (
-    <motion.span
-      whileHover={{ scale: 1.05, y: -2 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      style={{
+    <Box
+      sx={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "6px",
-        padding: "6px 14px",
+        gap: 0.75,
+        px: 2,
+        py: 0.75,
+        borderRadius: 1.5,
         fontSize: "0.813rem",
-        fontWeight: 700,
-        borderRadius: "8px",
-        background: style.bg,
-        color: style.text,
-        boxShadow: style.shadow,
-        cursor: "pointer",
-        userSelect: "none",
+        fontWeight: 600,
+        background: style.background,
+        color: style.color,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        transition: "all 0.2s ease",
+        "&:hover": {
+          transform: "translateY(-1px)",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+        }
       }}
     >
       {children}
-    </motion.span>
+    </Box>
   );
 }
