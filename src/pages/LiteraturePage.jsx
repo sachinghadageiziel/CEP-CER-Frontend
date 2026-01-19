@@ -493,13 +493,69 @@ const [databases, setDatabases] = useState({
                 )}
               </AnimatePresence>
 
-              {/* Results Section */}
+{/* Results Section */}
               {masterData.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5 }}
                 >
+                  {/* Total Count Section - Moved to Top */}
+                  <Card 
+                    sx={{ 
+                      p: 3, 
+                      mb: 3,
+                      borderRadius: 3,
+                      background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
+                      border: "1px solid #bae6fd",
+                      boxShadow: "0 4px 12px rgba(37, 99, 235, 0.1)",
+                    }}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                        <Box
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 2,
+                            background: "linear-gradient(135deg, #2563eb 0%, #14b8a6 100%)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
+                          }}
+                        >
+                          <Database size={24} color="#fff" />
+                        </Box>
+                        <Box>
+                          <Typography variant="h4" sx={{ fontWeight: 700, color: "#0c4a6e" }}>
+                            {masterData.length}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: "#0369a1", fontWeight: 500 }}>
+                            Total Articles Found
+                          </Typography>
+                        </Box>
+                      </Box>
+                      
+                      <Tooltip 
+                        title="Click any row in the table below to view complete article details"
+                        arrow
+                      >
+                        <Chip 
+                          icon={<Info size={14} />}
+                          label="Click rows for details"
+                          size="small"
+                          sx={{ 
+                            bgcolor: "#fff",
+                            color: "#0369a1",
+                            fontWeight: 600,
+                            border: "1px solid #bae6fd",
+                          }}
+                        />
+                      </Tooltip>
+                    </Box>
+                  </Card>
+
                   <Box sx={{ 
                     display: "flex", 
                     justifyContent: "space-between", 
@@ -510,64 +566,69 @@ const [databases, setDatabases] = useState({
                   }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
                       <Typography variant="h6" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                        Search Results
+                        Filter Results
                       </Typography>
-                      <Badge 
-                        badgeContent={masterData.length} 
-                        color="primary"
-                        max={9999}
-                        sx={{
-                          "& .MuiBadge-badge": {
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                          }
-                        }}
-                      >
-                        <Chip 
-                          label="Articles"
-                          sx={{ 
-                            bgcolor: "#e0e7ff",
-                            color: "#2563eb",
-                            fontWeight: 600,
-                          }}
-                        />
-                      </Badge>
                       
-                      {/* Filter Toggle */}
-                      <Tooltip title={uniqueOnly ? "Showing unique records only" : "Showing all records"}>
-                        <Chip
-                          icon={<Filter size={14} />}
-                          label={uniqueOnly ? "Unique Only" : "All Records"}
-                          onClick={() => setUniqueOnly(!uniqueOnly)}
-                          variant={uniqueOnly ? "filled" : "outlined"}
-                          color={uniqueOnly ? "primary" : "default"}
-                          sx={{ 
-                            cursor: "pointer",
-                            fontWeight: 600,
-                            "&:hover": {
-                              transform: "translateY(-2px)",
-                              boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                            },
-                            transition: "all 0.2s ease",
-                          }}
-                        />
-                      </Tooltip>
+                      {/* Filter Menu */}
+                      <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                        <Tooltip title="Show all records including duplicates">
+                          <Chip
+                            icon={<Database size={14} />}
+                            label="All Records"
+                            onClick={() => setUniqueOnly(false)}
+                            variant={!uniqueOnly ? "filled" : "outlined"}
+                            color={!uniqueOnly ? "primary" : "default"}
+                            sx={{ 
+                              cursor: "pointer",
+                              fontWeight: 600,
+                              "&:hover": {
+                                transform: "translateY(-2px)",
+                                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                              },
+                              transition: "all 0.2s ease",
+                            }}
+                          />
+                        </Tooltip>
 
-                      <Tooltip 
-                        title="Click any row to view complete article details"
-                        arrow
-                      >
-                        <Chip 
-                          icon={<Info size={14} />}
-                          label="Click to view details"
-                          size="small"
-                          variant="outlined"
-                          sx={{ 
-                            borderColor: "#94a3b8",
-                            color: "#64748b",
-                          }}
-                        />
-                      </Tooltip>
+                        <Tooltip title="Show only duplicate records">
+                          <Chip
+                            icon={<AlertCircle size={14} />}
+                            label="Duplicates Only"
+                            onClick={() => {/* Will implement duplicate filter */}}
+                            variant="outlined"
+                            sx={{ 
+                              cursor: "pointer",
+                              fontWeight: 600,
+                              opacity: 0.5,
+                              "&:hover": {
+                                opacity: 1,
+                                transform: "translateY(-2px)",
+                                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                              },
+                              transition: "all 0.2s ease",
+                            }}
+                          />
+                        </Tooltip>
+
+                        <Tooltip title="Show only unique records (no duplicates)">
+                          <Chip
+                            icon={<CheckCircle size={14} />}
+                            label="Unique Records"
+                            onClick={() => setUniqueOnly(true)}
+                            variant={uniqueOnly ? "filled" : "outlined"}
+                            color={uniqueOnly ? "primary" : "default"}
+                            sx={{ 
+                              cursor: "pointer",
+                              fontWeight: 600,
+                              "&:hover": {
+                                transform: "translateY(-2px)",
+                                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+                              },
+                              transition: "all 0.2s ease",
+                            }}
+                          />
+                        </Tooltip>
+                      </Box>
                     </Box>
                     
                     {/* Export Button with Menu */}
@@ -575,17 +636,18 @@ const [databases, setDatabases] = useState({
                       <Button
                         onClick={handleExportClick}
                         startIcon={<FileDown size={18} />}
-                        endIcon={<MoreVertical size={16} />}
-                        variant="outlined"
+                        variant="contained"
                         sx={{
+                          background: "linear-gradient(135deg, #2563eb 0%, #14b8a6 100%)",
+                          color: "#fff",
                           borderRadius: 2,
                           textTransform: "none",
                           fontWeight: 600,
-                          borderWidth: 2,
+                          px: 3,
+                          boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
                           "&:hover": {
-                            borderWidth: 2,
                             transform: "translateY(-2px)",
-                            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                            boxShadow: "0 6px 16px rgba(37, 99, 235, 0.4)",
                           },
                           transition: "all 0.2s ease",
                         }}
@@ -601,13 +663,10 @@ const [databases, setDatabases] = useState({
                             borderRadius: 2,
                             boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
                             minWidth: 200,
+                            mt: 1,
                           }
                         }}
                       >
-                        <MenuItem onClick={() => handleExport("unique")}>
-                          <CheckCircle size={16} style={{ marginRight: 8 }} />
-                          Unique Records
-                        </MenuItem>
                         <MenuItem onClick={() => handleExport("all")}>
                           <Database size={16} style={{ marginRight: 8 }} />
                           All Records
@@ -615,6 +674,10 @@ const [databases, setDatabases] = useState({
                         <MenuItem onClick={() => handleExport("duplicates")}>
                           <AlertCircle size={16} style={{ marginRight: 8 }} />
                           Duplicates Only
+                        </MenuItem>
+                        <MenuItem onClick={() => handleExport("unique")}>
+                          <CheckCircle size={16} style={{ marginRight: 8 }} />
+                          Unique Records
                         </MenuItem>
                       </Menu>
                     </Box>

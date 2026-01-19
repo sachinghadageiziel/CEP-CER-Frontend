@@ -489,7 +489,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                       Using IZIEL Template Criteria
                     </Typography>
                     <Typography variant="caption">
-                      Following standardized inclusion/exclusion criteria for systematic reviews
+                      Following standardized inclusion/exclusion criteria 
                     </Typography>
                   </Alert>
                 </>
@@ -519,7 +519,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                       Note: Custom Criteria
                     </Typography>
                     <Typography variant="caption">
-                      You are not following the standard IZIEL template criteria. Ensure your criteria meet your systematic review requirements.
+                      You are not following the standard IZIEL template criteria. Ensure to add Inclusion / Exclusion 
                     </Typography>
                   </Alert>
                 </>

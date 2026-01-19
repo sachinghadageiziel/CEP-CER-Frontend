@@ -5,6 +5,8 @@ import {
   FiDownload, FiSearch, FiCheckCircle, FiXCircle, FiFilter,
   FiChevronLeft, FiChevronRight, FiTrash2, FiX, FiInfo
 } from "react-icons/fi";
+
+// Import actual components
 import Layout from "../Layout/Layout";
 import BreadcrumbsBar from "../components/BreadcrumbsBar";
 
@@ -192,11 +194,11 @@ export default function SecondaryResultsPage() {
 
   return (
     <Layout>
-   <BreadcrumbsBar items={[
-  { label: "Home", to: "/" },
-  { label: "Project", to: `/project/${projectId}` },
-  { label: "Secondary Screening" }
-]} />
+      <BreadcrumbsBar items={[
+        { label: "Dashboard", to: "/" },
+        { label: "Projects", to: "/projects" },
+        { label: "Secondary Screening Results" }
+      ]} />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -223,7 +225,7 @@ export default function SecondaryResultsPage() {
           <div className="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h1 className="text-2xl sm:text-4xl font-bold text-white mb-2">Secondary Screening Results</h1>
-              <p className="text-blue-200 text-xs sm:text-sm font-medium">Project ID: <span className="font-bold">{projectId}</span></p>
+              <p className="text-blue-200 text-xs sm:text-sm font-medium">Project ID: <span className="font-bold">{projectId || "1"}</span></p>
             </div>
             <motion.button
               whileHover={{ scale: 1.05, y: -2 }}
@@ -354,8 +356,8 @@ export default function SecondaryResultsPage() {
                 <p className="text-slate-600 font-medium text-sm sm:text-base">No results found</p>
               </div>
             ) : (
-              <div className="min-w-full">
-                <table className="w-full text-xs sm:text-sm">
+              <div className="overflow-auto max-w-full">
+                <table className="w-full text-xs sm:text-sm min-w-max">
                   <thead className="bg-gradient-to-r from-slate-100 to-slate-50 border-b-2 border-slate-200 sticky top-0">
                     <tr>
                       <th className="px-3 sm:px-4 py-3 sm:py-4 text-left text-xs font-black text-slate-700 uppercase whitespace-nowrap sticky left-0 bg-slate-100 z-10">Article ID</th>
@@ -484,11 +486,15 @@ export default function SecondaryResultsPage() {
         </motion.div>
 
         {/* DETAIL VIEW MODAL */}
-        <DetailViewModal
-          open={detailModalOpen}
-          onClose={() => setDetailModalOpen(false)}
-          record={selectedRecord}
-        />
+        <AnimatePresence>
+          {detailModalOpen && (
+            <DetailViewModal
+              open={detailModalOpen}
+              onClose={() => setDetailModalOpen(false)}
+              record={selectedRecord}
+            />
+          )}
+        </AnimatePresence>
 
         {/* TOAST */}
         <AnimatePresence>

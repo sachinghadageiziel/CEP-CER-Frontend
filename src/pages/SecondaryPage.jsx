@@ -3,13 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   FiUpload, FiEye, FiX, FiCheckCircle, FiLoader, FiSearch, 
-  FiCheck, FiSquare, FiCheckSquare, FiDownload,
-  FiChevronLeft, FiChevronRight, FiXCircle,
-  FiFileText, FiAlertCircle, FiDatabase
+  FiCheck, FiSquare, FiCheckSquare, FiChevronLeft, 
+  FiChevronRight, FiXCircle, FiFileText, FiAlertCircle, FiDatabase
 } from "react-icons/fi";
+
+// ACTUAL IMPORTS - Use your existing components
 import Layout from "../Layout/Layout";
 import BreadcrumbsBar from "../components/BreadcrumbsBar";
-import ManualPdfUploadPopup from "../components/Manualpdfuploadpopup";
 
 // Fluent UI Style Progress Indicator Component
 const FluentProgressIndicator = ({ label, description, percentComplete }) => {
@@ -31,6 +31,121 @@ const FluentProgressIndicator = ({ label, description, percentComplete }) => {
     </div>
   );
 };
+
+// Manual PDF Upload Popup
+function ManualPdfUploadPopup({ open, pmid, onClose, onUpload, mode = "upload" }) {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type === "application/pdf") {
+      setSelectedFile(file);
+    } else {
+      alert("Please select a valid PDF file");
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+    
+    setUploading(true);
+    await onUpload(selectedFile);
+    setUploading(false);
+    setSelectedFile(null);
+  };
+
+  if (!open) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 30 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 30 }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        >
+          <div className="flex justify-between items-center px-6 py-5 border-b-2 bg-gradient-to-r from-blue-50 to-cyan-50">
+            <h2 className="text-xl font-bold text-slate-800">
+              {mode === "reupload" ? "Re-upload PDF" : "Upload PDF Manually"}
+            </h2>
+            <motion.button 
+              whileHover={{ scale: 1.1, rotate: 90 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={onClose} 
+              className="p-2 hover:bg-slate-200 rounded-xl transition-all"
+            >
+              <FiX className="w-6 h-6" />
+            </motion.button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+              <p className="text-sm text-blue-900 font-medium">
+                Article ID: <strong className="text-lg">{pmid}</strong>
+              </p>
+            </div>
+            
+            <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-blue-400 transition-all">
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handleFileChange}
+                className="hidden"
+                id="pdf-upload"
+              />
+              <label htmlFor="pdf-upload" className="cursor-pointer">
+                <FiUpload className="w-12 h-12 mx-auto text-slate-400 mb-3" />
+                <p className="text-sm font-semibold text-slate-700">
+                  {selectedFile ? selectedFile.name : "Click to select PDF file"}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">PDF files only</p>
+              </label>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onClose}
+                disabled={uploading}
+                className="flex-1 px-4 py-3 border-2 border-slate-300 rounded-xl hover:bg-slate-50 disabled:opacity-50 font-bold transition-all"
+              >
+                Cancel
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: !uploading && selectedFile ? 1.02 : 1 }}
+                whileTap={{ scale: !uploading && selectedFile ? 0.98 : 1 }}
+                onClick={handleUpload}
+                disabled={!selectedFile || uploading}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-xl hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 font-bold transition-all"
+              >
+                {uploading ? (
+                  <>
+                    <FiLoader className="w-5 h-5 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <FiUpload className="w-5 h-5" />
+                    {mode === "reupload" ? "Re-upload PDF" : "Upload PDF"}
+                  </>
+                )}
+              </motion.button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
 
 // PDF List Modal
 function PdfListModal({ open, onClose, pdfs, onView }) {
@@ -89,17 +204,12 @@ function PdfListModal({ open, onClose, pdfs, onView }) {
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-slate-800 text-sm sm:text-base truncate">{pdf.filename}</p>
                         <p className="text-xs sm:text-sm text-slate-500">PMID: <span className="font-semibold">{pdf.pmid}</span></p>
-                        {pdf.status === "uploaded_manually" && (
-                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-md text-xs font-semibold">
-                            <FiUpload className="w-3 h-3" /> Manual Upload
-                          </span>
-                        )}
                       </div>
                     </div>
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => onView(pdf.pmid)}
+                      onClick={() => onView(pdf.filename)}
                       className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all text-sm sm:text-base"
                     >
                       <FiEye className="w-4 h-4" /> View
@@ -200,40 +310,50 @@ export default function SecondaryPage() {
   /* ---------- STATE ---------- */
   const [pdfStatusData, setPdfStatusData] = useState([]);
   const [downloadedPdfs, setDownloadedPdfs] = useState([]);
-
   const [loadingSecondary, setLoadingSecondary] = useState(false);
-
   const [search, setSearch] = useState("");
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState("success"); // success, error, info
-
+  const [toastType, setToastType] = useState("success");
   const [activePdfUrl, setActivePdfUrl] = useState(null);
   const [showPdfList, setShowPdfList] = useState(false);
   const [openSecondary, setOpenSecondary] = useState(false);
-
   const [selectedLiteratureIds, setSelectedLiteratureIds] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
-
   const [page, setPage] = useState(0);
   const pageSize = 10;
-
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [uploadLiteratureId, setUploadLiteratureId] = useState(null);
   const [uploadPmid, setUploadPmid] = useState(null);
-
-  // Progress tracking with proper completion handling
+  const [uploadMode, setUploadMode] = useState("upload");
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  /* ---------- AUTO DOWNLOAD PDFs ON MOUNT ---------- */
+  /* ---------- LOAD DATA ON MOUNT ---------- */
   useEffect(() => {
     loadPdfStatus();
     loadPdfList();
-    handleDownloadPdfs();
+    checkAndAutoDownload();
   }, [projectId]);
+
+  const checkAndAutoDownload = async () => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/secondary/pdf-status/${projectId}`);
+      const data = await res.json();
+      if (data.exists && data.data) {
+        const hasDownloaded = data.data.some(row => 
+          row.status?.toLowerCase() === "downloaded" || row.status?.toLowerCase() === "uploaded_manually"
+        );
+        if (!hasDownloaded) {
+          handleDownloadPdfs();
+        }
+      }
+    } catch (error) {
+      console.error("Error checking download status:", error);
+    }
+  };
 
   const loadPdfStatus = async () => {
     try {
@@ -269,9 +389,8 @@ export default function SecondaryPage() {
     setIsDownloading(true);
     setDownloadProgress(0);
 
-    // Smooth progress animation
     const targetProgress = 0.9;
-    const duration = 3000; // 3 seconds to reach 90%
+    const duration = 3000;
     const steps = 30;
     const increment = targetProgress / steps;
     const stepDuration = duration / steps;
@@ -291,8 +410,6 @@ export default function SecondaryPage() {
       });
       
       clearInterval(progressInterval);
-      
-      // Complete the progress
       setDownloadProgress(1);
       
       await loadPdfStatus();
@@ -300,7 +417,6 @@ export default function SecondaryPage() {
       
       showNotification("PDFs downloaded successfully!");
       
-      // Hide progress bar after completion
       setTimeout(() => {
         setIsDownloading(false);
         setDownloadProgress(0);
@@ -318,16 +434,13 @@ export default function SecondaryPage() {
     if (!file || !uploadLiteratureId || !uploadPmid) return;
 
     const formData = new FormData();
-    formData.append("project_id", projectId);
-    formData.append("pmid", uploadPmid);
-    formData.append("pdf_file", file);
+    formData.append("file", file);
 
     setIsProcessing(true);
     setProcessingProgress(0);
 
-    // Smooth progress animation for PDF processing
     const targetProgress = 0.9;
-    const duration = 2000; // 2 seconds to reach 90%
+    const duration = 2000;
     const steps = 20;
     const increment = targetProgress / steps;
     const stepDuration = duration / steps;
@@ -343,13 +456,11 @@ export default function SecondaryPage() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/secondary/upload-manual-pdf`,
+        `http://localhost:5000/api/secondary/upload-pdf/${projectId}/${uploadLiteratureId}`,
         { method: "POST", body: formData }
       );
       
       clearInterval(progressInterval);
-      
-      // Complete the progress
       setProcessingProgress(1);
       
       await loadPdfStatus();
@@ -358,11 +469,10 @@ export default function SecondaryPage() {
       setUploadModalOpen(false);
       setUploadLiteratureId(null);
       setUploadPmid(null);
+      setUploadMode("upload");
       
-      // Show PDF-to-text completion notification
       showNotification("PDF uploaded and text extraction completed successfully!");
       
-      // Hide progress bar after completion
       setTimeout(() => {
         setIsProcessing(false);
         setProcessingProgress(0);
@@ -393,7 +503,6 @@ export default function SecondaryPage() {
       showNotification("Secondary screening completed!");
       setLoadingSecondary(false);
       
-      // Navigate to results page
       navigate(`/projects/${projectId}/secondary/results`);
     } catch (error) {
       console.error("Error running secondary screening:", error);
@@ -402,14 +511,16 @@ export default function SecondaryPage() {
     }
   };
 
-  const openPdf = async (pmid) => {
+  const openPdf = async (filename) => {
     try {
       const res = await fetch(
-        `http://localhost:5000/api/secondary/open-pdf?project_id=${projectId}&pmid=${encodeURIComponent(pmid)}`
+        `http://localhost:5000/api/secondary/open-pdf?project_id=${projectId}&filename=${encodeURIComponent(filename)}`
       );
       const blob = await res.blob();
-      setActivePdfUrl(URL.createObjectURL(blob));
+      const url = URL.createObjectURL(blob);
+      setActivePdfUrl(url);
     } catch (error) {
+      console.error("Error opening PDF:", error);
       showNotification("PDF not found", "error");
     }
   };
@@ -440,7 +551,7 @@ export default function SecondaryPage() {
   /* ---------- FILTERING ---------- */
   const filteredRows = useMemo(() => {
     return pdfStatusData.filter(row =>
-      row.pmid?.toLowerCase().includes(search.toLowerCase()) ||
+      row.article_id?.toLowerCase().includes(search.toLowerCase()) ||
       row.status?.toLowerCase().includes(search.toLowerCase())
     );
   }, [pdfStatusData, search]);
@@ -453,7 +564,7 @@ export default function SecondaryPage() {
     const selected = selectedLiteratureIds.size;
     const downloaded = [...selectedLiteratureIds].filter(id => {
       const row = pdfStatusData.find(r => r.literature_id === id);
-      return row && (row.status === "downloaded" || row.status === "uploaded_manually");
+      return row && (row.status?.toLowerCase() === "downloaded" || row.status?.toLowerCase() === "uploaded_manually");
     }).length;
     const pending = selected - downloaded;
 
@@ -461,30 +572,47 @@ export default function SecondaryPage() {
   }, [selectedLiteratureIds, pdfStatusData]);
 
   const getStatusBadge = (status) => {
-    const isDownloaded = status === "downloaded" || status === "uploaded_manually";
-    const isManual = status === "uploaded_manually";
+    const normalizedStatus = status?.toLowerCase() || "";
+    const isDownloaded = normalizedStatus === "downloaded";
+    const isManual = normalizedStatus === "uploaded_manually";
     
     return (
       <span className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-bold shadow-sm whitespace-nowrap ${
         isDownloaded 
-          ? isManual
-            ? "bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 border border-amber-200"
-            : "bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border border-green-200"
+          ? "bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border border-green-200"
+          : isManual
+          ? "bg-gradient-to-r from-amber-100 to-orange-100 text-amber-700 border border-amber-200"
           : "bg-gradient-to-r from-slate-100 to-slate-200 text-slate-600 border border-slate-300"
       }`}>
-        {isDownloaded && <FiCheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
-        {!isDownloaded && <FiLoader className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+        {(isDownloaded || isManual) && <FiCheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
+        {!isDownloaded && !isManual && <FiLoader className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
         <span className="hidden sm:inline">{isManual ? "Manual Upload" : status}</span>
         <span className="sm:hidden">{isManual ? "Manual" : status}</span>
       </span>
     );
   };
 
+  // Check button visibility based on Action Button Matrix
+  const shouldShowViewButton = (status) => {
+    const normalized = status?.toLowerCase() || "";
+    return normalized === "downloaded" || normalized === "uploaded_manually";
+  };
+
+  const shouldShowReuploadButton = (status) => {
+    const normalized = status?.toLowerCase() || "";
+    return normalized === "uploaded_manually";
+  };
+
+  const shouldShowUploadButton = (status) => {
+    const normalized = status?.toLowerCase() || "";
+    return normalized === "pending" || (!normalized);
+  };
+
   return (
     <Layout>
       <BreadcrumbsBar items={[
-        { label: "Dashboard", to: "/" },
-        { label: "Projects", to: "/projects" },
+        { label: "Home", to: "/" },
+        { label: "Project", to: `/project/${projectId}` },
         { label: "Secondary Screening" }
       ]} />
 
@@ -662,7 +790,6 @@ export default function SecondaryPage() {
               <tbody className="divide-y divide-slate-100">
                 {paginatedRows.map((row) => {
                   const isSelected = selectedLiteratureIds.has(row.literature_id);
-                  const hasDownloadedPdf = row.status === "downloaded" || row.status === "uploaded_manually";
                   
                   return (
                     <motion.tr 
@@ -683,28 +810,48 @@ export default function SecondaryPage() {
                           }
                         </motion.button>
                       </td>
-                      <td className="px-4 sm:px-6 py-3 sm:py-4 font-bold text-blue-600 text-sm sm:text-base">{row.pmid}</td>
+                      <td className="px-4 sm:px-6 py-3 sm:py-4 font-bold text-blue-600 text-sm sm:text-base">{row.article_id}</td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-slate-700 font-medium text-xs sm:text-sm">PubMed</td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-center">{getStatusBadge(row.status)}</td>
                       <td className="px-4 sm:px-6 py-3 sm:py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          {hasDownloadedPdf ? (
+                          {shouldShowViewButton(row.status) && (
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
-                              onClick={() => openPdf(row.pmid)}
+                              onClick={() => openPdf(`${row.article_id}.pdf`)}
                               className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold shadow-md hover:shadow-lg transition-all text-xs sm:text-sm"
                             >
                               <FiEye className="w-3 h-3 sm:w-4 sm:h-4" /> 
                               <span className="hidden sm:inline">View</span>
                             </motion.button>
-                          ) : (
+                          )}
+                          
+                          {shouldShowReuploadButton(row.status) && (
                             <motion.button
                               whileHover={{ scale: 1.05 }}
                               whileTap={{ scale: 0.95 }}
                               onClick={() => {
                                 setUploadLiteratureId(row.literature_id);
-                                setUploadPmid(row.pmid);
+                                setUploadPmid(row.article_id);
+                                setUploadMode("reupload");
+                                setUploadModalOpen(true);
+                              }}
+                              className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg hover:shadow-lg font-semibold transition-all text-xs sm:text-sm"
+                            >
+                              <FiUpload className="w-3 h-3 sm:w-4 sm:h-4" /> 
+                              <span className="hidden sm:inline">Re-upload</span>
+                            </motion.button>
+                          )}
+                          
+                          {shouldShowUploadButton(row.status) && (
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => {
+                                setUploadLiteratureId(row.literature_id);
+                                setUploadPmid(row.article_id);
+                                setUploadMode("upload");
                                 setUploadModalOpen(true);
                               }}
                               className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:shadow-lg font-semibold transition-all text-xs sm:text-sm"
@@ -763,10 +910,12 @@ export default function SecondaryPage() {
         <ManualPdfUploadPopup
           open={uploadModalOpen}
           pmid={uploadPmid}
+          mode={uploadMode}
           onClose={() => {
             setUploadModalOpen(false);
             setUploadLiteratureId(null);
             setUploadPmid(null);
+            setUploadMode("upload");
           }}
           onUpload={handleUploadPdf}
         />
@@ -787,7 +936,10 @@ export default function SecondaryPage() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6"
-              onClick={() => setActivePdfUrl(null)}
+              onClick={() => {
+                URL.revokeObjectURL(activePdfUrl);
+                setActivePdfUrl(null);
+              }}
             >
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
@@ -801,7 +953,10 @@ export default function SecondaryPage() {
                   <motion.button 
                     whileHover={{ scale: 1.1, rotate: 90 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => setActivePdfUrl(null)} 
+                    onClick={() => {
+                      URL.revokeObjectURL(activePdfUrl);
+                      setActivePdfUrl(null);
+                    }}
                     className="p-2 hover:bg-slate-200 rounded-xl transition-all"
                   >
                     <FiX className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -837,7 +992,7 @@ export default function SecondaryPage() {
         </AnimatePresence>
       </motion.div>
 
-      {/* BOTTOM PROGRESS BARS - Fluent UI Style */}
+      {/* BOTTOM PROGRESS BARS */}
       <AnimatePresence>
         {(isDownloading || isProcessing) && (
           <motion.div
@@ -857,7 +1012,7 @@ export default function SecondaryPage() {
               {isProcessing && !isDownloading && (
                 <FluentProgressIndicator 
                   label="Processing PDF" 
-                  description="Converting PDF to text and analyzing content..."
+                  description="PDF uploaded and text extraction completed successfully!"
                   percentComplete={processingProgress}
                 />
               )}
