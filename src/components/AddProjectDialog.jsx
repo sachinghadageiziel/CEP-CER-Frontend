@@ -1,5 +1,4 @@
-// AddProjectDialog.jsx - Updated with Owner, Status, and Criteria fields
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,19 +21,30 @@ const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
-export default function AddProjectDialog({ open, handleClose, handleSave }) {
+export default function AddProjectDialog({ open, handleClose, handleSave, currentUser }) {
   const [projectData, setProjectData] = useState({
     title: "",
     owner: "",
     startDate: "",
-    endDate: "",
     status: "Active",
     primaryCriteria: "",
     secondaryCriteria: "",
+    customCriteria: "",
   });
   const [ifuFile, setIfuFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [useCustomCriteria, setUseCustomCriteria] = useState(false);
+
+  // Set owner to logged-in user when dialog opens
+  useEffect(() => {
+    if (open && currentUser) {
+      setProjectData(prev => ({
+        ...prev,
+        owner: currentUser
+      }));
+    }
+  }, [open, currentUser]);
 
   const handleChange = (e) => {
     setProjectData({ ...projectData, [e.target.name]: e.target.value });
@@ -44,7 +54,6 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate PDF
       if (!file.name.toLowerCase().endsWith('.pdf')) {
         setError("IFU must be a PDF file");
         setIfuFile(null);
@@ -52,7 +61,6 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
         return;
       }
       
-      // Check file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         setError("File size must be less than 10MB");
         setIfuFile(null);
@@ -88,14 +96,6 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
       return;
     }
 
-    // Validate date range if both dates are provided
-    if (projectData.startDate && projectData.endDate) {
-      if (new Date(projectData.startDate) > new Date(projectData.endDate)) {
-        setError("Start Date cannot be after End Date");
-        return;
-      }
-    }
-
     setLoading(true);
     setError("");
 
@@ -104,44 +104,32 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
       formData.append("title", projectData.title.trim());
       formData.append("owner", projectData.owner.trim());
       
-      // Add dates if provided (optional)
       if (projectData.startDate) {
         formData.append("start_date", projectData.startDate);
       }
-      if (projectData.endDate) {
-        formData.append("end_date", projectData.endDate);
-      }
 
-      // Add status (defaults to Active)
       formData.append("status", projectData.status);
 
-      // Add criteria fields (optional)
-      if (projectData.primaryCriteria.trim()) {
-        formData.append("primary_criteria", projectData.primaryCriteria.trim());
-      }
-      if (projectData.secondaryCriteria.trim()) {
-        formData.append("secondary_criteria", projectData.secondaryCriteria.trim());
+      // Handle criteria - either custom or IZIEL template
+      if (useCustomCriteria && projectData.customCriteria.trim()) {
+        formData.append("custom_criteria", projectData.customCriteria.trim());
+      } else {
+        if (projectData.primaryCriteria.trim()) {
+          formData.append("primary_criteria", projectData.primaryCriteria.trim());
+        }
+        if (projectData.secondaryCriteria.trim()) {
+          formData.append("secondary_criteria", projectData.secondaryCriteria.trim());
+        }
       }
 
-      // Add IFU PDF (mandatory)
       formData.append("ifu_pdf", ifuFile);
 
       console.log("📤 Sending FormData to backend");
-      console.log("  - title:", projectData.title);
-      console.log("  - owner:", projectData.owner);
-      console.log("  - start_date:", projectData.startDate || "not provided");
-      console.log("  - end_date:", projectData.endDate || "not provided");
-      console.log("  - status:", projectData.status);
-      console.log("  - primary_criteria:", projectData.primaryCriteria || "not provided");
-      console.log("  - secondary_criteria:", projectData.secondaryCriteria || "not provided");
-      console.log("  - ifu_pdf:", ifuFile.name);
 
       const response = await fetch("http://localhost:5000/api/projects/project", {
         method: "POST",
         body: formData,
       });
-
-      console.log("📥 Response status:", response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -151,7 +139,6 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
       const newProject = await response.json();
       console.log("✅ Project created:", newProject);
 
-      // Call parent's handleSave
       if (handleSave) {
         await handleSave(newProject);
       }
@@ -159,14 +146,15 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
       // Reset form and close
       setProjectData({
         title: "",
-        owner: "",
+        owner: currentUser || "",
         startDate: "",
-        endDate: "",
         status: "Active",
         primaryCriteria: "",
         secondaryCriteria: "",
+        customCriteria: "",
       });
       setIfuFile(null);
+      setUseCustomCriteria(false);
       setLoading(false);
       handleClose();
 
@@ -191,20 +179,20 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
     handleClose();
     setError("");
     setIfuFile(null);
+    setUseCustomCriteria(false);
     setTimeout(() => {
       setProjectData({
         title: "",
-        owner: "",
+        owner: currentUser || "",
         startDate: "",
-        endDate: "",
         status: "Active",
         primaryCriteria: "",
         secondaryCriteria: "",
+        customCriteria: "",
       });
     }, 300);
   };
 
-  // Get today's date in YYYY-MM-DD format
   const today = new Date().toISOString().split('T')[0];
 
   return (
@@ -237,17 +225,6 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
             right: -40,
             width: 120,
             height: 120,
-            background: "rgba(255, 255, 255, 0.1)",
-            borderRadius: "50%",
-          }}
-        />
-        <Box
-          sx={{
-            position: "absolute",
-            bottom: -30,
-            left: -30,
-            width: 100,
-            height: 100,
             background: "rgba(255, 255, 255, 0.1)",
             borderRadius: "50%",
           }}
@@ -299,9 +276,6 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
               "&:hover": {
                 bgcolor: "rgba(255, 255, 255, 0.2)",
               },
-              "&:disabled": {
-                color: "rgba(255, 255, 255, 0.5)",
-              }
             }}
           >
             <X size={20} />
@@ -313,15 +287,11 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
       <DialogContent sx={{ p: 3, pt: 3 }}>
         <Fade in={open} timeout={400}>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {/* Error Alert */}
             {error && (
               <Alert 
                 severity="error" 
                 onClose={() => setError("")}
-                sx={{ 
-                  borderRadius: 2,
-                  whiteSpace: "pre-line"
-                }}
+                sx={{ borderRadius: 2, whiteSpace: "pre-line" }}
               >
                 {error}
               </Alert>
@@ -331,13 +301,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
             <Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
                 <FileText size={18} color="#667eea" />
-                <Typography 
-                  variant="subtitle2" 
-                  sx={{ 
-                    fontWeight: 600,
-                    color: "#1e293b",
-                  }}
-                >
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
                   Project Title *
                 </Typography>
               </Box>
@@ -352,13 +316,8 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     borderRadius: 2,
-                    "&:hover fieldset": {
-                      borderColor: "#667eea",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "#667eea",
-                      borderWidth: 2,
-                    }
+                    "&:hover fieldset": { borderColor: "#667eea" },
+                    "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
                   }
                 }}
               />
@@ -368,13 +327,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
             <Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
                 <User size={18} color="#667eea" />
-                <Typography 
-                  variant="subtitle2" 
-                  sx={{ 
-                    fontWeight: 600,
-                    color: "#1e293b",
-                  }}
-                >
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
                   Project Owner *
                 </Typography>
               </Box>
@@ -389,130 +342,50 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     borderRadius: 2,
-                    "&:hover fieldset": {
-                      borderColor: "#667eea",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "#667eea",
-                      borderWidth: 2,
-                    }
+                    "&:hover fieldset": { borderColor: "#667eea" },
+                    "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
                   }
                 }}
               />
             </Box>
 
-            {/* Date Range and Status */}
+            {/* Start Date and Status */}
             <Box sx={{ display: "flex", gap: 2 }}>
-              {/* Date Range */}
-              <Box sx={{ flex: 2 }}>
+              <Box sx={{ flex: 1 }}>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Calendar size={18} color="#667eea" />
-                    <Typography 
-                      variant="subtitle2" 
-                      sx={{ 
-                        fontWeight: 600,
-                        color: "#1e293b",
-                      }}
-                    >
-                      Project Duration
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                      Start Date
                     </Typography>
                   </Box>
-                  <Typography 
-                    variant="caption" 
-                    sx={{ 
-                      color: "#64748b",
-                      fontSize: "0.75rem",
-                      fontStyle: "italic"
-                    }}
-                  >
+                  <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.75rem", fontStyle: "italic" }}>
                     Optional
                   </Typography>
                 </Box>
-                <Box sx={{ display: "flex", gap: 2 }}>
-                  <TextField
-                    name="startDate"
-                    type="date"
-                    label="Start Date"
-                    value={projectData.startDate}
-                    onChange={handleChange}
-                    fullWidth
-                    disabled={loading}
-                    InputLabelProps={{
-                      shrink: true,
-                    }}
-                    inputProps={{
-                      min: today
-                    }}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        borderRadius: 2,
-                        "&:hover fieldset": {
-                          borderColor: "#667eea",
-                        },
-                        "&.Mui-focused fieldset": {
-                          borderColor: "#667eea",
-                          borderWidth: 2,
-                        }
-                      }
-                    }}
-                  />
-                  <TextField
-                    name="endDate"
-                    type="date"
-                    label="End Date"
-                    value={projectData.endDate}
-                    onChange={handleChange}
-                    fullWidth
-                    disabled={loading}
-                    InputLabelProps={{
-                      shrink: true,
-                    }}
-                    inputProps={{
-                      min: projectData.startDate || today
-                    }}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        borderRadius: 2,
-                        "&:hover fieldset": {
-                          borderColor: "#667eea",
-                        },
-                        "&.Mui-focused fieldset": {
-                          borderColor: "#667eea",
-                          borderWidth: 2,
-                        }
-                      }
-                    }}
-                  />
-                </Box>
-                {projectData.startDate && projectData.endDate && (
-                  <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1 }}>
-                    <Chip
-                      icon={<Check size={14} />}
-                      label={`Duration: ${Math.ceil((new Date(projectData.endDate) - new Date(projectData.startDate)) / (1000 * 60 * 60 * 24))} days`}
-                      size="small"
-                      sx={{
-                        bgcolor: "#e7f1ff",
-                        color: "#0654c4",
-                        fontWeight: 600,
-                        fontSize: "0.75rem",
-                      }}
-                    />
-                  </Box>
-                )}
+                <TextField
+                  name="startDate"
+                  type="date"
+                  value={projectData.startDate}
+                  onChange={handleChange}
+                  fullWidth
+                  disabled={loading}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ min: today }}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      borderRadius: 2,
+                      "&:hover fieldset": { borderColor: "#667eea" },
+                      "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                    }
+                  }}
+                />
               </Box>
 
-              {/* Status Dropdown */}
               <Box sx={{ flex: 1 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
                   <Target size={18} color="#667eea" />
-                  <Typography 
-                    variant="subtitle2" 
-                    sx={{ 
-                      fontWeight: 600,
-                      color: "#1e293b",
-                    }}
-                  >
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
                     Status
                   </Typography>
                 </Box>
@@ -526,13 +399,8 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
                   sx={{
                     "& .MuiOutlinedInput-root": {
                       borderRadius: 2,
-                      "&:hover fieldset": {
-                        borderColor: "#667eea",
-                      },
-                      "&.Mui-focused fieldset": {
-                        borderColor: "#667eea",
-                        borderWidth: 2,
-                      }
+                      "&:hover fieldset": { borderColor: "#667eea" },
+                      "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
                     }
                   }}
                 >
@@ -544,145 +412,136 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
               </Box>
             </Box>
 
-            {/* Primary Criteria */}
+            {/* Criteria Selection Toggle */}
             <Box>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Target size={18} color="#667eea" />
-                  <Typography 
-                    variant="subtitle2" 
-                    sx={{ 
-                      fontWeight: 600,
-                      color: "#1e293b",
-                    }}
-                  >
-                    Primary Criteria
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                    Selection Criteria
                   </Typography>
                 </Box>
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: "#64748b",
+                <Button
+                  size="small"
+                  onClick={() => setUseCustomCriteria(!useCustomCriteria)}
+                  sx={{
+                    textTransform: "none",
                     fontSize: "0.75rem",
-                    fontStyle: "italic"
+                    fontWeight: 600,
+                    color: useCustomCriteria ? "#dc3545" : "#0d6efd",
                   }}
                 >
-                  Optional
-                </Typography>
+                  {useCustomCriteria ? "Use IZIEL Template" : "Add Custom Criteria"}
+                </Button>
               </Box>
-              <TextField
-                name="primaryCriteria"
-                value={projectData.primaryCriteria}
-                onChange={handleChange}
-                fullWidth
-                multiline
-                rows={2}
-                placeholder="Enter primary inclusion/exclusion criteria"
-                disabled={loading}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: 2,
-                    "&:hover fieldset": {
-                      borderColor: "#667eea",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "#667eea",
-                      borderWidth: 2,
-                    }
-                  }
-                }}
-              />
-            </Box>
 
-            {/* Secondary Criteria */}
-            <Box>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Target size={18} color="#667eea" />
-                  <Typography 
-                    variant="subtitle2" 
-                    sx={{ 
-                      fontWeight: 600,
-                      color: "#1e293b",
+              {!useCustomCriteria ? (
+                <>
+                  {/* IZIEL Template Criteria */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" sx={{ mb: 1.5, color: "#64748b", fontWeight: 600 }}>
+                      Primary Criteria (Optional)
+                    </Typography>
+                    <TextField
+                      name="primaryCriteria"
+                      value={projectData.primaryCriteria}
+                      onChange={handleChange}
+                      fullWidth
+                      multiline
+                      rows={2}
+                      placeholder="Enter primary inclusion/exclusion criteria"
+                      disabled={loading}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          "&:hover fieldset": { borderColor: "#667eea" },
+                          "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                        }
+                      }}
+                    />
+                  </Box>
+
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1.5, color: "#64748b", fontWeight: 600 }}>
+                      Secondary Criteria (Optional)
+                    </Typography>
+                    <TextField
+                      name="secondaryCriteria"
+                      value={projectData.secondaryCriteria}
+                      onChange={handleChange}
+                      fullWidth
+                      multiline
+                      rows={2}
+                      placeholder="Enter secondary inclusion/exclusion criteria"
+                      disabled={loading}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          borderRadius: 2,
+                          "&:hover fieldset": { borderColor: "#667eea" },
+                          "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                        }
+                      }}
+                    />
+                  </Box>
+
+                  <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      Using IZIEL Template Criteria
+                    </Typography>
+                    <Typography variant="caption">
+                      Following standardized inclusion/exclusion criteria for systematic reviews
+                    </Typography>
+                  </Alert>
+                </>
+              ) : (
+                <>
+                  {/* Custom Criteria */}
+                  <TextField
+                    name="customCriteria"
+                    value={projectData.customCriteria}
+                    onChange={handleChange}
+                    fullWidth
+                    multiline
+                    rows={4}
+                    placeholder="Enter your custom selection criteria..."
+                    disabled={loading}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: 2,
+                        "&:hover fieldset": { borderColor: "#667eea" },
+                        "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                      }
                     }}
-                  >
-                    Secondary Criteria
-                  </Typography>
-                </Box>
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: "#64748b",
-                    fontSize: "0.75rem",
-                    fontStyle: "italic"
-                  }}
-                >
-                  Optional
-                </Typography>
-              </Box>
-              <TextField
-                name="secondaryCriteria"
-                value={projectData.secondaryCriteria}
-                onChange={handleChange}
-                fullWidth
-                multiline
-                rows={2}
-                placeholder="Enter secondary inclusion/exclusion criteria"
-                disabled={loading}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    borderRadius: 2,
-                    "&:hover fieldset": {
-                      borderColor: "#667eea",
-                    },
-                    "&.Mui-focused fieldset": {
-                      borderColor: "#667eea",
-                      borderWidth: 2,
-                    }
-                  }
-                }}
-              />
+                  />
+
+                  <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      Note: Custom Criteria
+                    </Typography>
+                    <Typography variant="caption">
+                      You are not following the standard IZIEL template criteria. Ensure your criteria meet your systematic review requirements.
+                    </Typography>
+                  </Alert>
+                </>
+              )}
             </Box>
 
-            {/* IFU PDF Upload - Mandatory */}
+            {/* IFU PDF Upload */}
             <Box>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                   <Upload size={18} color="#667eea" />
-                  <Typography 
-                    variant="subtitle2" 
-                    sx={{ 
-                      fontWeight: 600,
-                      color: "#1e293b",
-                    }}
-                  >
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
                     IFU Document *
                   </Typography>
                 </Box>
-                {ifuFile && (
-                  <Chip
-                    icon={<Check size={14} />}
-                    label="Uploaded"
-                    size="small"
-                    sx={{
-                      bgcolor: "#d1e7dd",
-                      color: "#0f5132",
-                      fontWeight: 700,
-                      fontSize: "0.7rem",
-                    }}
+                {ifuFile ? (
+                  <Chip icon={<Check size={14} />} label="Uploaded" size="small"
+                    sx={{ bgcolor: "#d1e7dd", color: "#0f5132", fontWeight: 700, fontSize: "0.7rem" }}
                   />
-                )}
-                {!ifuFile && (
-                  <Chip
-                    icon={<AlertCircle size={14} />}
-                    label="Required"
-                    size="small"
-                    sx={{
-                      bgcolor: "#f8d7da",
-                      color: "#842029",
-                      fontWeight: 700,
-                      fontSize: "0.7rem",
-                    }}
+                ) : (
+                  <Chip icon={<AlertCircle size={14} />} label="Required" size="small"
+                    sx={{ bgcolor: "#f8d7da", color: "#842029", fontWeight: 700, fontSize: "0.7rem" }}
                   />
                 )}
               </Box>
@@ -734,10 +593,6 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    transition: "all 0.3s ease",
-                    "&:hover": {
-                      boxShadow: "0 4px 12px rgba(102, 126, 234, 0.2)",
-                    }
                   }}
                 >
                   <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -767,12 +622,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
                   <IconButton
                     onClick={handleRemoveFile}
                     disabled={loading}
-                    sx={{
-                      color: "#dc3545",
-                      "&:hover": {
-                        bgcolor: "#ffebee",
-                      }
-                    }}
+                    sx={{ color: "#dc3545", "&:hover": { bgcolor: "#ffebee" } }}
                   >
                     <X size={20} />
                   </IconButton>
@@ -795,9 +645,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
             textTransform: "none",
             fontWeight: 600,
             color: "#64748b",
-            "&:hover": {
-              bgcolor: "#f1f5f9",
-            }
+            "&:hover": { bgcolor: "#f1f5f9" }
           }}
         >
           Cancel
@@ -814,7 +662,6 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
             fontWeight: 700,
             background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             boxShadow: "0 4px 12px rgba(102, 126, 234, 0.3)",
-            transition: "all 0.3s ease",
             "&:hover": {
               transform: "translateY(-2px)",
               boxShadow: "0 8px 24px rgba(102, 126, 234, 0.4)",

@@ -1,10 +1,17 @@
+import React from "react";
 import { Breadcrumbs, Typography, Link, Box } from "@mui/material";
 import { Link as RouterLink } from "react-router-dom";
 import { Home, ChevronRight } from "lucide-react";
 
 export default function BreadcrumbsBar({ items = [] }) {
   return (
-    <Box sx={{ mb: 3 }}>
+    <Box 
+      sx={{ 
+        mb: { xs: 2, sm: 3 },
+        width: "100%",
+        overflow: "hidden",
+      }}
+    >
       <Breadcrumbs
         separator={
           <ChevronRight 
@@ -18,6 +25,7 @@ export default function BreadcrumbsBar({ items = [] }) {
         sx={{
           "& .MuiBreadcrumbs-ol": {
             flexWrap: "wrap",
+            gap: { xs: 0.5, sm: 1 },
           }
         }}
       >
@@ -35,9 +43,9 @@ export default function BreadcrumbsBar({ items = [] }) {
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 0.75,
-                  px: 2,
-                  py: 1,
+                  gap: { xs: 0.5, sm: 0.75 },
+                  px: { xs: 1.5, sm: 2 },
+                  py: { xs: 0.75, sm: 1 },
                   borderRadius: 2,
                   transition: "all 0.2s ease",
                   color: "#6c757d",
@@ -56,7 +64,8 @@ export default function BreadcrumbsBar({ items = [] }) {
                   variant="body2" 
                   sx={{ 
                     fontWeight: 600,
-                    fontSize: "0.875rem",
+                    fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                    display: { xs: "none", sm: "block" }
                   }}
                 >
                   Home
@@ -70,21 +79,25 @@ export default function BreadcrumbsBar({ items = [] }) {
               <Box
                 key={index}
                 sx={{
-                  px: 2.5,
-                  py: 1,
+                  px: { xs: 1.5, sm: 2.5 },
+                  py: { xs: 0.75, sm: 1 },
                   borderRadius: 2,
                   background: "linear-gradient(135deg, #0d6efd 0%, #0654c4 100%)",
                   color: "#fff",
                   display: "inline-flex",
                   alignItems: "center",
                   boxShadow: "0 2px 12px rgba(13, 110, 253, 0.25)",
+                  maxWidth: { xs: "200px", sm: "none" },
                 }}
               >
                 <Typography 
                   variant="body2" 
                   sx={{ 
                     fontWeight: 700,
-                    fontSize: "0.875rem",
+                    fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {item.label}
@@ -100,14 +113,15 @@ export default function BreadcrumbsBar({ items = [] }) {
               to={item.to}
               underline="none"
               sx={{
-                px: 2,
-                py: 1,
+                px: { xs: 1.5, sm: 2 },
+                py: { xs: 0.75, sm: 1 },
                 borderRadius: 2,
                 transition: "all 0.2s ease",
                 color: "#6c757d",
                 bgcolor: "transparent",
                 border: "1px solid transparent",
                 display: "inline-block",
+                maxWidth: { xs: "150px", sm: "none" },
                 "&:hover": {
                   bgcolor: "#f8f9fa",
                   color: "#0d6efd",
@@ -120,7 +134,10 @@ export default function BreadcrumbsBar({ items = [] }) {
                 variant="body2" 
                 sx={{ 
                   fontWeight: 600,
-                  fontSize: "0.875rem",
+                  fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {item.label}

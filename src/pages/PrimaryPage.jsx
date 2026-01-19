@@ -7,7 +7,6 @@ import {
   Button, 
   Card,
   Fade,
-  Zoom,
   LinearProgress,
   Chip,
   IconButton,
@@ -18,6 +17,17 @@ import {
   DialogActions,
   Alert,
   Snackbar,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  InputAdornment,
+  Select,
+  MenuItem,
+  FormControl,
 } from "@mui/material";
 import { 
   FileText, 
@@ -31,11 +41,14 @@ import {
   Play,
   AlertCircle,
   TrendingUp,
+  Search,
+  Eye,
+  Trash2,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Layout from "../Layout/Layout";
 import BreadcrumbsBar from "../components/BreadcrumbsBar";
-import ResultTable from "../components/ResultTable";
 
 const API_BASE = "http://localhost:5000/api/primary";
 
@@ -50,6 +63,9 @@ export default function PrimarySearchPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterDecision, setFilterDecision] = useState("all");
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -71,8 +87,8 @@ export default function PrimarySearchPage() {
           data.data.map((r, i) => ({
             id: i + 1,
             literature_id: r.literature_id,
-            article_id: r.article_id,  // PMID
-            PMID: r.article_id,  // For backward compatibility
+            article_id: r.article_id,
+            PMID: r.article_id,
             title: r.title,
             abstract: r.abstract,
             Decision: r.decision,
@@ -107,7 +123,6 @@ export default function PrimarySearchPage() {
     setRunning(true);
     setProgress(0);
 
-    // Progress simulation
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 95) {
@@ -162,54 +177,6 @@ export default function PrimarySearchPage() {
   };
 
   // -------------------------------
-  // UPDATE DECISION
-  // -------------------------------
-  const handleDecisionChange = async (displayId, newDecision, rationale = "") => {
-    try {
-      // Find the row to get the literature_id
-      const targetRow = rows.find(r => 
-        r.PMID === displayId || 
-        r.article_id === displayId || 
-        r.literature_id === displayId
-      );
-      
-      if (!targetRow) {
-        showSnackbar("Record not found", "error");
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("decision", newDecision);
-      formData.append("rationale", rationale);
-
-      const response = await fetch(
-        `${API_BASE}/${PROJECT_ID}/${targetRow.literature_id}`,
-        {
-          method: "PUT",
-          body: formData,
-        }
-      );
-
-      if (response.ok) {
-        setRows((prev) =>
-          prev.map((r) =>
-            r.literature_id === targetRow.literature_id
-              ? { ...r, Decision: newDecision, decision: newDecision, Rationale: rationale, rationale: rationale } 
-              : r
-          )
-        );
-        showSnackbar("Decision updated successfully", "success");
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Failed to update decision");
-      }
-    } catch (error) {
-      console.error("Error updating decision:", error);
-      showSnackbar("Failed to update decision", "error");
-    }
-  };
-
-  // -------------------------------
   // DELETE RECORD
   // -------------------------------
   const handleDelete = async (displayId) => {
@@ -218,7 +185,6 @@ export default function PrimarySearchPage() {
     }
 
     try {
-      // Find the row to get the literature_id
       const targetRow = rows.find(r => 
         r.PMID === displayId || 
         r.article_id === displayId || 
@@ -273,14 +239,35 @@ export default function PrimarySearchPage() {
   }, [rows]);
 
   // -------------------------------
+  // FILTERING
+  // -------------------------------
+  const filteredRows = useMemo(() => {
+    let filtered = rows;
+    
+    if (searchTerm) {
+      filtered = filtered.filter(row => 
+        row.PMID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        row.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        row.abstract?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    if (filterDecision !== "all") {
+      filtered = filtered.filter(row => row.decision === filterDecision);
+    }
+    
+    return filtered;
+  }, [rows, searchTerm, filterDecision]);
+
+  // -------------------------------
   // PAGINATION
   // -------------------------------
   const pagedRows = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
-    return rows.slice(start, start + PAGE_SIZE);
-  }, [rows, page]);
+    return filteredRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRows, page]);
 
-  const totalPages = Math.ceil(rows.length / PAGE_SIZE);
+  const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE);
 
   return (
     <Layout>
@@ -307,8 +294,8 @@ export default function PrimarySearchPage() {
                     mb: 4,
                     borderRadius: 4,
                     overflow: "hidden",
-                    boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
-                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 10px 40px rgba(14, 165, 233, 0.15)",
+                    border: "1px solid #e0f2fe",
                   }}
                 >
                   <Box
@@ -319,7 +306,6 @@ export default function PrimarySearchPage() {
                       overflow: "hidden",
                     }}
                   >
-                    {/* Background decoration */}
                     <Box
                       sx={{
                         position: "absolute",
@@ -355,33 +341,21 @@ export default function PrimarySearchPage() {
                       }}
                     >
                       <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
-                        <motion.div
-                          animate={{ 
-                            scale: [1, 1.05, 1],
-                            rotate: [0, 5, -5, 0]
-                          }}
-                          transition={{ 
-                            duration: 3,
-                            repeat: Infinity,
-                            repeatType: "reverse"
+                        <Box
+                          sx={{
+                            width: { xs: 56, md: 72 },
+                            height: { xs: 56, md: 72 },
+                            borderRadius: 3,
+                            bgcolor: "rgba(255,255,255,0.2)",
+                            backdropFilter: "blur(10px)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
                           }}
                         >
-                          <Box
-                            sx={{
-                              width: 72,
-                              height: 72,
-                              borderRadius: 3,
-                              bgcolor: "rgba(255,255,255,0.2)",
-                              backdropFilter: "blur(10px)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
-                            }}
-                          >
-                            <Filter color="#fff" size={36} />
-                          </Box>
-                        </motion.div>
+                          <Filter color="#fff" size={36} />
+                        </Box>
                         <Box>
                           <Typography 
                             variant="h4" 
@@ -397,8 +371,9 @@ export default function PrimarySearchPage() {
                           <Typography 
                             variant="body1" 
                             sx={{ 
-                              color: "rgba(255,255,255,0.9)",
+                              color: "rgba(255,255,255,0.95)",
                               fontWeight: 500,
+                              fontSize: { xs: "0.875rem", md: "1rem" },
                             }}
                           >
                             Review and screen literature based on inclusion criteria
@@ -455,7 +430,12 @@ export default function PrimarySearchPage() {
                               }
                             }}
                           >
-                            Start Primary Screening
+                            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                              Start Primary Screening
+                            </Box>
+                            <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+                              Start
+                            </Box>
                           </Button>
                         ) : (
                           <Button
@@ -477,7 +457,12 @@ export default function PrimarySearchPage() {
                               },
                             }}
                           >
-                            Export Results
+                            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                              Export Results
+                            </Box>
+                            <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+                              Export
+                            </Box>
                           </Button>
                         )}
                       </Box>
@@ -499,58 +484,41 @@ export default function PrimarySearchPage() {
                             borderTop: "1px solid #a5f3fc",
                           }}
                         >
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                              <motion.div
-                                animate={{ 
-                                  scale: [1, 1.2, 1],
-                                  rotate: [0, 360]
-                                }}
-                                transition={{ 
-                                  duration: 2,
-                                  repeat: Infinity,
-                                  ease: "linear"
+                              <Box
+                                sx={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: 2,
+                                  background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
                                 }}
                               >
-                                <Box
-                                  sx={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: 2,
-                                    background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                >
-                                  <Filter size={20} color="#fff" />
-                                </Box>
-                              </motion.div>
+                                <Filter size={20} color="#fff" />
+                              </Box>
                               <Box>
-                                <Typography variant="body1" sx={{ fontWeight: 700, color: "#075985" }}>
+                                <Typography variant="body1" sx={{ fontWeight: 700, color: "#075985", fontSize: { xs: "0.875rem", sm: "1rem" } }}>
                                   Processing Primary Screening
                                 </Typography>
-                                <Typography variant="caption" sx={{ color: "#0c4a6e" }}>
+                                <Typography variant="caption" sx={{ color: "#0c4a6e", fontSize: { xs: "0.75rem", sm: "0.875rem" } }}>
                                   Analyzing articles against IFU criteria...
                                 </Typography>
                               </Box>
                             </Box>
-                            <motion.div
-                              animate={{ scale: [1, 1.1, 1] }}
-                              transition={{ duration: 1, repeat: Infinity }}
-                            >
-                              <Chip 
-                                label={`${Math.round(progress)}%`}
-                                sx={{
-                                  background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
-                                  color: "#fff",
-                                  fontWeight: 800,
-                                  fontSize: "1rem",
-                                  height: 36,
-                                  px: 1,
-                                }}
-                              />
-                            </motion.div>
+                            <Chip 
+                              label={`${Math.round(progress)}%`}
+                              sx={{
+                                background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                                color: "#fff",
+                                fontWeight: 800,
+                                fontSize: "1rem",
+                                height: 36,
+                                px: 1,
+                              }}
+                            />
                           </Box>
                           <LinearProgress 
                             variant="determinate" 
@@ -579,11 +547,11 @@ export default function PrimarySearchPage() {
                     sx={{ 
                       display: "grid",
                       gridTemplateColumns: { 
-                        xs: "1fr", 
-                        sm: "repeat(2, 1fr)", 
+                        xs: "repeat(2, 1fr)", 
+                        sm: "repeat(3, 1fr)", 
                         md: "repeat(5, 1fr)" 
                       },
-                      gap: 3,
+                      gap: { xs: 2, md: 3 },
                       mb: 4,
                     }}
                   >
@@ -594,7 +562,6 @@ export default function PrimarySearchPage() {
                         icon: FileText, 
                         gradient: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
                         bgGradient: "linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)",
-                        delay: 0
                       },
                       { 
                         label: "Included", 
@@ -602,7 +569,6 @@ export default function PrimarySearchPage() {
                         icon: CheckCircle, 
                         gradient: "linear-gradient(135deg, #10b981 0%, #22c55e 100%)",
                         bgGradient: "linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)",
-                        delay: 0.15
                       },
                       { 
                         label: "Excluded", 
@@ -610,7 +576,6 @@ export default function PrimarySearchPage() {
                         icon: XCircle, 
                         gradient: "linear-gradient(135deg, #ef4444 0%, #f87171 100%)",
                         bgGradient: "linear-gradient(135deg, #fecaca 0%, #fca5a5 100%)",
-                        delay: 0.3
                       },
                       { 
                         label: "Pending", 
@@ -618,7 +583,6 @@ export default function PrimarySearchPage() {
                         icon: Clock, 
                         gradient: "linear-gradient(135deg, #f59e0b 0%, #eab308 100%)",
                         bgGradient: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
-                        delay: 0.45
                       },
                       { 
                         label: "Inclusion Rate", 
@@ -626,21 +590,20 @@ export default function PrimarySearchPage() {
                         icon: TrendingUp, 
                         gradient: "linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)",
                         bgGradient: "linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%)",
-                        delay: 0.6
                       },
                     ].map((stat, idx) => (
                       <motion.div
                         key={idx}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: stat.delay, duration: 0.5 }}
+                        transition={{ delay: idx * 0.1, duration: 0.5 }}
                       >
                         <Card
                           sx={{
-                            p: 3,
+                            p: { xs: 2, md: 3 },
                             borderRadius: 3,
                             boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
-                            border: "1px solid #e2e8f0",
+                            border: "1px solid #e0f2fe",
                             transition: "all 0.3s ease",
                             position: "relative",
                             overflow: "hidden",
@@ -663,31 +626,25 @@ export default function PrimarySearchPage() {
                             }}
                           />
                           <Box sx={{ position: "relative", zIndex: 1 }}>
-                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 2 }}>
-                              <motion.div
-                                whileHover={{ scale: 1.1, rotate: 5 }}
-                                transition={{ type: "spring", stiffness: 300 }}
-                              >
-                                <Box
-                                  sx={{
-                                    width: 48,
-                                    height: 48,
-                                    borderRadius: 2,
-                                    background: stat.gradient,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-                                  }}
-                                >
-                                  <stat.icon size={24} color="#fff" />
-                                </Box>
-                              </motion.div>
+                            <Box
+                              sx={{
+                                width: { xs: 40, md: 48 },
+                                height: { xs: 40, md: 48 },
+                                borderRadius: 2,
+                                background: stat.gradient,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
+                                mb: 2,
+                              }}
+                            >
+                              <stat.icon size={24} color="#fff" />
                             </Box>
-                            <Typography variant="body2" sx={{ color: "#64748b", mb: 0.5, fontWeight: 600 }}>
+                            <Typography variant="body2" sx={{ color: "#64748b", mb: 0.5, fontWeight: 600, fontSize: { xs: "0.75rem", md: "0.875rem" } }}>
                               {stat.label}
                             </Typography>
-                            <Typography variant="h3" sx={{ fontWeight: 800, color: "#1e293b" }}>
+                            <Typography variant="h3" sx={{ fontWeight: 800, color: "#1e293b", fontSize: { xs: "1.5rem", md: "2rem" } }}>
                               {stat.value}
                             </Typography>
                           </Box>
@@ -711,49 +668,165 @@ export default function PrimarySearchPage() {
                     <Card
                       sx={{
                         borderRadius: 4,
-                        boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
-                        border: "1px solid #e2e8f0",
+                        boxShadow: "0 10px 40px rgba(14, 165, 233, 0.15)",
+                        border: "1px solid #e0f2fe",
                         overflow: "hidden",
                       }}
                     >
+                      {/* Filter Bar */}
                       <Box 
                         sx={{ 
-                          p: 3, 
-                          background: "linear-gradient(135deg, #cffafe 0%, #e0f2fe 100%)",
-                          borderBottom: "1px solid #a5f3fc",
-                          display: "flex",
-                          flexDirection: { xs: "column", sm: "row" },
-                          justifyContent: "space-between",
-                          alignItems: { xs: "flex-start", sm: "center" },
-                          gap: 2,
+                          p: { xs: 2, md: 3 },
+                          background: "linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%)",
+                          borderBottom: "1px solid #bae6fd",
                         }}
                       >
-                        <Box>
-                          <Typography variant="h6" sx={{ fontWeight: 700, color: "#075985", mb: 0.5 }}>
-                            Screening Results
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: "#0c4a6e" }}>
-                            Click on any row to view details and make decisions
-                          </Typography>
+                        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
+                          <TextField
+                            placeholder="Search by PMID, title, or abstract..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            size="small"
+                            sx={{
+                              flex: 1,
+                              bgcolor: "#fff",
+                              borderRadius: 2,
+                              "& .MuiOutlinedInput-root": {
+                                borderRadius: 2,
+                              }
+                            }}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Search size={20} color="#64748b" />
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                          <FormControl size="small" sx={{ minWidth: { xs: "100%", sm: 200 } }}>
+                            <Select
+                              value={filterDecision}
+                              onChange={(e) => setFilterDecision(e.target.value)}
+                              sx={{
+                                bgcolor: "#fff",
+                                borderRadius: 2,
+                              }}
+                            >
+                              <MenuItem value="all">All Decisions</MenuItem>
+                              <MenuItem value="Include">Include</MenuItem>
+                              <MenuItem value="Exclude">Exclude</MenuItem>
+                              <MenuItem value="Pending">Pending</MenuItem>
+                            </Select>
+                          </FormControl>
                         </Box>
                       </Box>
 
-                      <Box sx={{ overflowX: "auto" }}>
-                        <ResultTable
-                          rows={pagedRows}
-                          onDecisionChange={handleDecisionChange}
-                          onDelete={handleDelete}
-                          onRowClick={(row) =>
-                            navigate(
-                              `/project/${PROJECT_ID}/primary/article/${row.article_id || row.PMID}`,
-                              { state: row }
-                            )
-                          }
-                        />
-                      </Box>
+                      {/* Table */}
+                      <TableContainer>
+                        <Table>
+                          <TableHead sx={{ bgcolor: "#f8fafc" }}>
+                            <TableRow>
+                              <TableCell sx={{ fontWeight: 700, color: "#475569", textTransform: "uppercase", fontSize: "0.75rem" }}>PMID</TableCell>
+                              <TableCell sx={{ fontWeight: 700, color: "#475569", textTransform: "uppercase", fontSize: "0.75rem", display: { xs: "none", lg: "table-cell" } }}>Abstract</TableCell>
+                              <TableCell sx={{ fontWeight: 700, color: "#475569", textTransform: "uppercase", fontSize: "0.75rem" }}>Decision</TableCell>
+                              <TableCell sx={{ fontWeight: 700, color: "#475569", textTransform: "uppercase", fontSize: "0.75rem", display: { xs: "none", md: "table-cell" } }}>Rationale</TableCell>
+                              <TableCell sx={{ fontWeight: 700, color: "#475569", textTransform: "uppercase", fontSize: "0.75rem", display: { xs: "none", xl: "table-cell" } }}>Exclusion Criteria</TableCell>
+                              <TableCell sx={{ fontWeight: 700, color: "#475569", textTransform: "uppercase", fontSize: "0.75rem" }}>Actions</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {pagedRows.map((row) => (
+                              <TableRow 
+                                key={row.id}
+                                onClick={() => navigate(`/project/${PROJECT_ID}/primary/article/${row.article_id || row.PMID}`, { state: row })}
+                                sx={{
+                                  "&:hover": {
+                                    bgcolor: "#eff6ff",
+                                    cursor: "pointer",
+                                  },
+                                  transition: "background-color 0.2s ease",
+                                }}
+                              >
+                                <TableCell>
+                                  <Typography sx={{ fontFamily: "monospace", fontSize: "0.875rem", fontWeight: 600, color: "#0284c7" }}>
+                                    {row.PMID}
+                                  </Typography>
+                                  <Typography sx={{ fontSize: "0.75rem", color: "#64748b", display: { xs: "block", lg: "none" }, mt: 0.5 }}>
+                                    {row.title?.substring(0, 50)}...
+                                  </Typography>
+                                </TableCell>
+                                <TableCell sx={{ display: { xs: "none", lg: "table-cell" }, maxWidth: 400 }}>
+                                  <Typography sx={{ fontSize: "0.875rem", fontWeight: 600, color: "#1e293b", mb: 0.5 }}>
+                                    {row.title}
+                                  </Typography>
+                                  <Typography sx={{ fontSize: "0.75rem", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                                    {row.abstract}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={row.decision || "Pending"}
+                                    size="small"
+                                    sx={{
+                                      fontWeight: 700,
+                                      bgcolor: row.decision === "Include" ? "#dcfce7" : row.decision === "Exclude" ? "#fee2e2" : "#fef3c7",
+                                      color: row.decision === "Include" ? "#15803d" : row.decision === "Exclude" ? "#b91c1c" : "#a16207",
+                                      borderRadius: 2,
+                                    }}
+                                  />
+                                </TableCell>
+                                <TableCell sx={{ display: { xs: "none", md: "table-cell" }, maxWidth: 300 }}>
+                                  <Typography sx={{ fontSize: "0.75rem", color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                                    {row.rationale || "—"}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell sx={{ display: { xs: "none", xl: "table-cell" } }}>
+                                  <Typography sx={{ fontSize: "0.75rem", color: "#64748b" }}>
+                                    {row.exclusion_criteria || "None"}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Box sx={{ display: "flex", gap: 1 }}>
+                                    <Tooltip title="View Details">
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedRow(row);
+                                        }}
+                                        sx={{
+                                          color: "#0284c7",
+                                          "&:hover": { bgcolor: "#eff6ff" }
+                                        }}
+                                      >
+                                        <Eye size={18} />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Delete">
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDelete(row.PMID);
+                                        }}
+                                        sx={{
+                                          color: "#dc2626",
+                                          "&:hover": { bgcolor: "#fef2f2" }
+                                        }}
+                                      >
+                                        <Trash2 size={18} />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
 
                       {/* Pagination */}
-                      {rows.length > PAGE_SIZE && (
+                      {totalPages > 1 && (
                         <Box 
                           sx={{ 
                             p: 3, 
@@ -766,23 +839,24 @@ export default function PrimarySearchPage() {
                             borderTop: "1px solid #e2e8f0",
                           }}
                         >
-                          <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 600 }}>
-                            Page {page} of {totalPages} • Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, rows.length)} of {rows.length} results
+                          <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 600, fontSize: { xs: "0.75rem", sm: "0.875rem" } }}>
+                            Page {page} of {totalPages} • Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, filteredRows.length)} of {filteredRows.length} results
                           </Typography>
                           <Box sx={{ display: "flex", gap: 2, justifyContent: { xs: "center", sm: "flex-start" } }}>
                             <Button
                               disabled={page === 1}
                               onClick={() => setPage((p) => p - 1)}
                               variant="outlined"
+                              size="small"
                               sx={{
                                 borderRadius: 2,
                                 textTransform: "none",
                                 fontWeight: 600,
-                                borderColor: "#e2e8f0",
+                                borderColor: "#cbd5e1",
                                 color: "#64748b",
                                 "&:hover": {
-                                  borderColor: "#cbd5e1",
-                                  bgcolor: "#f8fafc",
+                                  borderColor: "#0284c7",
+                                  bgcolor: "#eff6ff",
                                 },
                                 "&:disabled": {
                                   borderColor: "#f1f5f9",
@@ -793,10 +867,11 @@ export default function PrimarySearchPage() {
                               Previous
                             </Button>
                             <Button
-                              disabled={page * PAGE_SIZE >= rows.length}
+                              disabled={page >= totalPages}
                               onClick={() => setPage((p) => p + 1)}
                               variant="contained"
-                              endIcon={<ArrowRight size={18} />}
+                              size="small"
+                              endIcon={<ArrowRight size={16} />}
                               sx={{
                                 borderRadius: 2,
                                 textTransform: "none",
@@ -830,27 +905,18 @@ export default function PrimarySearchPage() {
                   >
                     <Card
                       sx={{
-                        p: 8,
+                        p: { xs: 6, md: 8 },
                         textAlign: "center",
                         borderRadius: 4,
-                        border: "2px dashed #a5f3fc",
-                        background: "linear-gradient(135deg, #f0fdfa 0%, #cffafe 100%)",
-                        boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
+                        border: "2px dashed #bae6fd",
+                        background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
+                        boxShadow: "0 10px 40px rgba(14, 165, 233, 0.15)",
                         position: "relative",
                         overflow: "hidden",
                       }}
                     >
-                      <motion.div
-                        animate={{ 
-                          scale: [1, 1.2, 1],
-                          opacity: [0.3, 0.5, 0.3]
-                        }}
-                        transition={{ 
-                          duration: 3,
-                          repeat: Infinity,
-                          ease: "easeInOut"
-                        }}
-                        style={{
+                      <Box
+                        sx={{
                           position: "absolute",
                           top: -60,
                           right: -60,
@@ -860,74 +926,52 @@ export default function PrimarySearchPage() {
                           borderRadius: "50%",
                         }}
                       />
-                      <Box
-                        sx={{
-                          position: "relative",
-                          zIndex: 1,
-                        }}
-                      >
-                        <motion.div
-                          animate={{ 
-                            y: [0, -10, 0],
-                            rotate: [0, 5, -5, 0]
-                          }}
-                          transition={{ 
-                            duration: 3,
-                            repeat: Infinity,
-                            ease: "easeInOut"
+                      <Box sx={{ position: "relative", zIndex: 1 }}>
+                        <Box
+                          sx={{
+                            width: { xs: 80, md: 96 },
+                            height: { xs: 80, md: 96 },
+                            borderRadius: 3,
+                            background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            margin: "0 auto 24px",
+                            boxShadow: "0 8px 32px rgba(14, 165, 233, 0.3)",
                           }}
                         >
-                          <Box
-                            sx={{
-                              width: 96,
-                              height: 96,
-                              borderRadius: 3,
-                              background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              margin: "0 auto 24px",
-                              boxShadow: "0 8px 32px rgba(14, 165, 233, 0.3)",
-                            }}
-                          >
-                            <Filter size={48} color="#fff" />
-                          </Box>
-                        </motion.div>
-                        <Typography variant="h5" sx={{ color: "#075985", mb: 1, fontWeight: 700 }}>
+                          <Filter size={48} color="#fff" />
+                        </Box>
+                        <Typography variant="h5" sx={{ color: "#075985", mb: 1, fontWeight: 700, fontSize: { xs: "1.25rem", md: "1.5rem" } }}>
                           No screening data yet
                         </Typography>
-                        <Typography variant="body1" sx={{ color: "#0c4a6e", mb: 4, maxWidth: 500, mx: "auto" }}>
+                        <Typography variant="body1" sx={{ color: "#0c4a6e", mb: 4, maxWidth: 500, mx: "auto", fontSize: { xs: "0.875rem", md: "1rem" } }}>
                           Start the primary screening process to analyze articles against your IFU criteria.
                           The system will automatically screen all literature based on your project's inclusion and exclusion criteria.
                         </Typography>
-                        <motion.div
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
+                        <Button
+                          onClick={() => setConfirmDialog(true)}
+                          variant="contained"
+                          startIcon={<Play size={20} />}
+                          endIcon={<ArrowRight size={20} />}
+                          sx={{
+                            background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                            px: 4,
+                            py: 1.5,
+                            borderRadius: 2,
+                            fontWeight: 700,
+                            textTransform: "none",
+                            fontSize: "1rem",
+                            boxShadow: "0 4px 16px rgba(14, 165, 233, 0.3)",
+                            "&:hover": {
+                              background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
+                              transform: "translateY(-2px)",
+                              boxShadow: "0 8px 24px rgba(14, 165, 233, 0.4)",
+                            }
+                          }}
                         >
-                          <Button
-                            onClick={() => setConfirmDialog(true)}
-                            variant="contained"
-                            startIcon={<Play size={20} />}
-                            endIcon={<ArrowRight size={20} />}
-                            sx={{
-                              background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
-                              px: 4,
-                              py: 1.5,
-                              borderRadius: 2,
-                              fontWeight: 700,
-                              textTransform: "none",
-                              fontSize: "1rem",
-                              boxShadow: "0 4px 16px rgba(14, 165, 233, 0.3)",
-                              "&:hover": {
-                                background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
-                                transform: "translateY(-2px)",
-                                boxShadow: "0 8px 24px rgba(14, 165, 233, 0.4)",
-                              }
-                            }}
-                          >
-                            Start Primary Screening
-                          </Button>
-                        </motion.div>
+                          Start Primary Screening
+                        </Button>
                       </Box>
                     </Card>
                   </motion.div>
@@ -990,6 +1034,112 @@ export default function PrimarySearchPage() {
               Start Screening
             </Button>
           </DialogActions>
+        </Dialog>
+
+        {/* Detail Modal */}
+        <Dialog
+          open={!!selectedRow}
+          onClose={() => setSelectedRow(null)}
+          maxWidth="md"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+            }
+          }}
+        >
+          {selectedRow && (
+            <>
+              <DialogTitle sx={{ 
+                background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                color: "#fff",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+                <Box>
+                  <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.9)" }}>
+                    Article Details
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                    PMID: {selectedRow.PMID}
+                  </Typography>
+                </Box>
+                <IconButton onClick={() => setSelectedRow(null)} sx={{ color: "#fff" }}>
+                  <X size={24} />
+                </IconButton>
+              </DialogTitle>
+              <DialogContent sx={{ mt: 3 }}>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
+                      Title
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b", mt: 0.5 }}>
+                      {selectedRow.title}
+                    </Typography>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
+                      Abstract
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "#475569", mt: 0.5, lineHeight: 1.7 }}>
+                      {selectedRow.abstract}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 3 }}>
+                    <Box>
+                      <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
+                        Decision
+                      </Typography>
+                      <Box sx={{ mt: 0.5 }}>
+                        <Chip
+                          label={selectedRow.decision || "Pending"}
+                          sx={{
+                            fontWeight: 700,
+                            bgcolor: selectedRow.decision === "Include" ? "#dcfce7" : selectedRow.decision === "Exclude" ? "#fee2e2" : "#fef3c7",
+                            color: selectedRow.decision === "Include" ? "#15803d" : selectedRow.decision === "Exclude" ? "#b91c1c" : "#a16207",
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
+                        Exclusion Criteria
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "#475569", mt: 0.5 }}>
+                        {selectedRow.exclusion_criteria || "None"}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Box>
+                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
+                      Rationale
+                    </Typography>
+                    <Box sx={{ bgcolor: "#f8fafc", borderRadius: 2, p: 2, mt: 0.5 }}>
+                      <Typography variant="body2" sx={{ color: "#475569" }}>
+                        {selectedRow.rationale || "—"}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </DialogContent>
+              <DialogActions sx={{ p: 3, bgcolor: "#f8fafc", borderTop: "1px solid #e2e8f0" }}>
+                <Button
+                  onClick={() => setSelectedRow(null)}
+                  variant="contained"
+                  sx={{
+                    background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                    textTransform: "none",
+                    fontWeight: 600,
+                    borderRadius: 2,
+                  }}
+                >
+                  Close
+                </Button>
+              </DialogActions>
+            </>
+          )}
         </Dialog>
 
         {/* Snackbar */}

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiUpload, FiX, FiFileText, FiCheckCircle, FiAlertCircle } from "react-icons/fi";
+import { FiUpload, FiX, FiFileText, FiCheckCircle, FiAlertCircle, FiTrash2 } from "react-icons/fi";
 
 export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) {
   const [file, setFile] = useState(null);
@@ -36,6 +36,10 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
     }
+  };
+
+  const handleRemoveFile = () => {
+    setFile(null);
   };
 
   const handleUpload = async () => {
@@ -77,8 +81,18 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
             className="bg-white w-full max-w-xl rounded-3xl shadow-2xl overflow-hidden"
           >
             {/* HEADER */}
-            <div className="relative bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 px-8 py-6 overflow-hidden">
-              <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
+            <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-blue-900 px-8 py-6 overflow-hidden">
+              <div className="absolute inset-0 opacity-10">
+                {[...Array(30)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="absolute w-1 h-1 bg-white rounded-full"
+                    style={{ left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%` }}
+                    animate={{ opacity: [0.2, 1, 0.2], scale: [1, 1.5, 1] }}
+                    transition={{ duration: 3 + Math.random() * 2, repeat: Infinity, delay: Math.random() * 2 }}
+                  />
+                ))}
+              </div>
               
               <motion.button
                 whileHover={{ scale: 1.1, rotate: 90 }}
@@ -96,7 +110,7 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
                 </div>
                 <div>
                   <h2 className="text-3xl font-bold text-white">Manual PDF Upload</h2>
-                  <p className="text-amber-100 text-sm mt-1 font-medium">
+                  <p className="text-blue-100 text-sm mt-1 font-medium">
                     PMID: <span className="font-bold font-mono">{pmid}</span>
                   </p>
                 </div>
@@ -111,9 +125,9 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
                   <FiAlertCircle className="w-6 h-6 text-blue-600" />
                 </div>
                 <div className="text-sm text-blue-900">
-                  <p className="font-bold mb-1">PDF Not Available</p>
+                  <p className="font-bold mb-1">PDF Upload Required</p>
                   <p className="text-blue-700">
-                    This PDF couldn't be automatically downloaded. Please upload the file manually for this PMID.
+                    Upload the PDF file manually for this article. The file will be processed automatically after upload.
                   </p>
                 </div>
               </div>
@@ -129,10 +143,10 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
                   transition-all duration-300 cursor-pointer
                   ${
                     file
-                      ? "border-emerald-400 bg-emerald-50"
+                      ? "border-blue-400 bg-blue-50"
                       : dragActive
-                      ? "border-amber-400 bg-amber-50 scale-105"
-                      : "border-slate-300 bg-slate-50 hover:border-amber-400 hover:bg-amber-50"
+                      ? "border-blue-400 bg-blue-50 scale-105"
+                      : "border-slate-300 bg-slate-50 hover:border-blue-400 hover:bg-blue-50"
                   }
                   ${uploading ? "opacity-50 cursor-not-allowed" : ""}
                 `}
@@ -157,36 +171,46 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="p-4 bg-emerald-100 rounded-2xl"
+                        className="p-4 bg-blue-100 rounded-2xl"
                       >
-                        <FiCheckCircle className="w-12 h-12 text-emerald-600" />
+                        <FiCheckCircle className="w-12 h-12 text-blue-600" />
                       </motion.div>
-                      <div className="text-center">
-                        <p className="font-bold text-emerald-900 text-lg">
+                      <div className="text-center w-full">
+                        <p className="font-bold text-blue-900 text-lg truncate px-4">
                           {file.name}
                         </p>
-                        <p className="text-sm text-emerald-600 mt-2 font-medium">
+                        <p className="text-sm text-blue-600 mt-2 font-medium">
                           {(file.size / 1024 / 1024).toFixed(2)} MB
                         </p>
                         {!uploading && (
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setFile(null);
-                            }}
-                            className="text-xs text-emerald-700 hover:text-emerald-800 underline mt-3 font-semibold"
-                          >
-                            Choose a different file
-                          </button>
+                          <div className="flex gap-2 justify-center mt-4">
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleRemoveFile();
+                              }}
+                              className="flex items-center gap-2 px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-semibold transition-all"
+                            >
+                              <FiTrash2 className="w-4 h-4" /> Remove
+                            </motion.button>
+                            <label
+                              htmlFor="pdf-upload"
+                              className="flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-semibold transition-all cursor-pointer"
+                            >
+                              <FiFileText className="w-4 h-4" /> Replace
+                            </label>
+                          </div>
                         )}
                       </div>
                     </>
                   ) : (
                     <>
                       <div className={`p-4 rounded-2xl transition-all ${
-                        dragActive ? "bg-amber-100 scale-110" : "bg-amber-100"
+                        dragActive ? "bg-blue-100 scale-110" : "bg-blue-100"
                       }`}>
-                        <FiFileText className="w-12 h-12 text-amber-600" />
+                        <FiFileText className="w-12 h-12 text-blue-600" />
                       </div>
                       <div className="text-center">
                         <p className="font-bold text-slate-700 text-lg">
@@ -206,16 +230,20 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
                 <p className="text-sm font-bold text-slate-700 mb-3">File Requirements:</p>
                 <ul className="space-y-2 text-sm text-slate-600">
                   <li className="flex items-center gap-3">
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
                     <span><span className="font-semibold">Format:</span> PDF only</span>
                   </li>
                   <li className="flex items-center gap-3">
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
                     <span><span className="font-semibold">Size:</span> Maximum 50MB</span>
                   </li>
                   <li className="flex items-center gap-3">
-                    <div className="w-1.5 h-1.5 rounded-full bg-slate-400 flex-shrink-0" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
                     <span><span className="font-semibold">Content:</span> Must be readable and not corrupted</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+                    <span><span className="font-semibold">Processing:</span> Text extraction will run automatically</span>
                   </li>
                 </ul>
               </div>
@@ -229,16 +257,16 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-3"
                   >
-                    <div className="px-5 py-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl">
+                    <div className="px-5 py-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200 rounded-2xl">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-bold text-amber-900">
-                          Uploading PDF...
+                        <span className="text-sm font-bold text-blue-900">
+                          Uploading and Processing PDF...
                         </span>
                       </div>
                       
-                      <div className="w-full bg-amber-200 h-2.5 rounded-full overflow-hidden">
+                      <div className="w-full bg-blue-200 h-2.5 rounded-full overflow-hidden">
                         <motion.div
-                          className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-red-500"
+                          className="h-full bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-600"
                           animate={{
                             x: ["-100%", "100%"],
                           }}
@@ -250,8 +278,8 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
                         />
                       </div>
 
-                      <p className="text-xs text-amber-600 mt-3 font-medium">
-                        Please wait while we upload and process your PDF
+                      <p className="text-xs text-blue-600 mt-3 font-medium">
+                        Please wait while we upload, extract text, and process your PDF
                       </p>
                     </div>
                   </motion.div>
@@ -281,7 +309,7 @@ export default function ManualPdfUploadPopup({ open, pmid, onClose, onUpload }) 
                     ${
                       !file || uploading
                         ? "bg-slate-300 cursor-not-allowed"
-                        : "bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 hover:shadow-2xl hover:shadow-amber-500/50"
+                        : "bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 hover:shadow-2xl hover:shadow-blue-500/50"
                     }
                   `}
                 >
