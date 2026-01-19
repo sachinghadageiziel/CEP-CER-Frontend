@@ -564,7 +564,7 @@ export default function SecondaryPage() {
     const selected = selectedLiteratureIds.size;
     const downloaded = [...selectedLiteratureIds].filter(id => {
       const row = pdfStatusData.find(r => r.literature_id === id);
-      return row && (row.status?.toLowerCase() === "downloaded" || row.status?.toLowerCase() === "uploaded_manually");
+      return row && (row.status?.toLowerCase() === "downloaded" || row.status?.toLowerCase() === "manually uploaded");
     }).length;
     const pending = selected - downloaded;
 
@@ -574,7 +574,7 @@ export default function SecondaryPage() {
   const getStatusBadge = (status) => {
     const normalizedStatus = status?.toLowerCase() || "";
     const isDownloaded = normalizedStatus === "downloaded";
-    const isManual = normalizedStatus === "uploaded_manually";
+    const isManual = normalizedStatus === "manually uploaded";
     
     return (
       <span className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-bold shadow-sm whitespace-nowrap ${
