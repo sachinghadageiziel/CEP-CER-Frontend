@@ -610,7 +610,7 @@ const [databases, setDatabases] = useState({
                           />
                         </Tooltip>
 
-                        <Tooltip title="Show only unique records (no duplicates)">
+                        {/* <Tooltip title="Show only unique records (no duplicates)">
                           <Chip
                             icon={<CheckCircle size={14} />}
                             label="Unique Records"
@@ -627,7 +627,7 @@ const [databases, setDatabases] = useState({
                               transition: "all 0.2s ease",
                             }}
                           />
-                        </Tooltip>
+                        </Tooltip> */}
                       </Box>
                     </Box>
                     

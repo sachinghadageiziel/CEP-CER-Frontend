@@ -45,14 +45,6 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Default route - redirect based on authentication */}
-      <Route 
-        path="/" 
-        element={
-          isAuthenticated ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />
-        } 
-      />
-      
       {/* Public routes - redirect to home if authenticated */}
       <Route 
         path="/login" 
@@ -149,8 +141,21 @@ function AppRoutes() {
         } 
       />
 
-      {/* Catch all - redirect to login */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      {/* Root path - redirect based on authentication */}
+      <Route 
+        path="/" 
+        element={
+          isAuthenticated ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />
+        } 
+      />
+
+      {/* Catch all - redirect to home if authenticated, login if not */}
+      <Route 
+        path="*" 
+        element={
+          isAuthenticated ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />
+        } 
+      />
     </Routes>
   );
 }

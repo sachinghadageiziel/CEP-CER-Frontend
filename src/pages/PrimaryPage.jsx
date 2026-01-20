@@ -37,14 +37,15 @@ import {
   ArrowRight,
   Download,
   RefreshCw,
-  Clock,
   Play,
   AlertCircle,
-  TrendingUp,
   Search,
   Eye,
   Trash2,
   X,
+  Upload,
+  ArrowRightCircle,
+  ChevronRight,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Layout from "../Layout/Layout";
@@ -62,14 +63,46 @@ export default function PrimarySearchPage() {
   const [progress, setProgress] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(false);
+  const [uploadDialog, setUploadDialog] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
-  const [selectedRow, setSelectedRow] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDecision, setFilterDecision] = useState("all");
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  // Real-time stats from API
+  const [stats, setStats] = useState({
+    total: 0,
+    included: 0,
+    excluded: 0,
+  });
 
   // Pagination
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 50;
+
+  // -------------------------------
+  // LOAD STATS FROM API
+  // -------------------------------
+  const loadStats = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE}/project-decision-count?project_id=${PROJECT_ID}`
+      );
+      const data = await response.json();
+
+      if (data) {
+        const decisionCounts = data.decision_counts || {};
+
+        setStats({
+          total: data.total || 0,
+          included: decisionCounts.INCLUDE || decisionCounts.Include || 0,
+          excluded: decisionCounts.EXCLUDE || decisionCounts.Exclude || 0,
+        });
+      }
+    } catch (err) {
+      console.error("Error loading stats:", err);
+    }
+  };
 
   // -------------------------------
   // LOAD EXISTING DATA
@@ -103,6 +136,8 @@ export default function PrimarySearchPage() {
         setHasExistingData(false);
         setRows([]);
       }
+
+      await loadStats();
     } catch (err) {
       console.error("Error loading data:", err);
       showSnackbar("Failed to load screening results", "error");
@@ -110,6 +145,7 @@ export default function PrimarySearchPage() {
       if (showRefresh) setIsRefreshing(false);
     }
   };
+const [downloadingPDFs, setDownloadingPDFs] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -177,6 +213,39 @@ export default function PrimarySearchPage() {
   };
 
   // -------------------------------
+  // UPLOAD FILE HANDLER
+  // -------------------------------
+  const handleFileUpload = async () => {
+    if (!selectedFile) {
+      showSnackbar("Please select a file first", "warning");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("project_id", PROJECT_ID);
+
+    try {
+      const response = await fetch(`${API_BASE}/upload-screening-file`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        showSnackbar("File uploaded successfully!", "success");
+        setUploadDialog(false);
+        setSelectedFile(null);
+        await loadData();
+      } else {
+        throw new Error("Upload failed");
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      showSnackbar("File upload failed. Please try again.", "error");
+    }
+  };
+
+  // -------------------------------
   // DELETE RECORD
   // -------------------------------
   const handleDelete = async (displayId) => {
@@ -203,6 +272,7 @@ export default function PrimarySearchPage() {
 
       if (response.ok) {
         setRows((prev) => prev.filter((r) => r.literature_id !== targetRow.literature_id));
+        await loadStats();
         showSnackbar("Record deleted successfully", "success");
       } else {
         const errorData = await response.json();
@@ -220,23 +290,6 @@ export default function PrimarySearchPage() {
   const showSnackbar = (message, severity) => {
     setSnackbar({ open: true, message, severity });
   };
-
-  // -------------------------------
-  // STATS
-  // -------------------------------
-  const stats = useMemo(() => {
-    const included = rows.filter((r) => r.Decision === "Include").length;
-    const excluded = rows.filter((r) => r.Decision === "Exclude").length;
-    const pending = rows.filter((r) => !r.Decision || r.Decision === "Pending").length;
-    
-    return { 
-      total: rows.length, 
-      included, 
-      excluded, 
-      pending,
-      inclusionRate: rows.length > 0 ? ((included / rows.length) * 100).toFixed(1) : 0
-    };
-  }, [rows]);
 
   // -------------------------------
   // FILTERING
@@ -268,6 +321,40 @@ export default function PrimarySearchPage() {
   }, [filteredRows, page]);
 
   const totalPages = Math.ceil(filteredRows.length / PAGE_SIZE);
+
+  // -------------------------------
+  // NAVIGATE TO SECONDARY SCREENING
+  // -------------------------------
+ const handleStartSecondaryScreening = async () => {
+  try {
+    setDownloadingPDFs(true);
+    showSnackbar("Preparing PDFs for secondary screening...", "info");
+
+    const res = await fetch(
+      `http://localhost:5000/api/secondary/download-pdfs/${PROJECT_ID}`,
+      { method: "POST" }
+    );
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "PDF download failed");
+    }
+
+    showSnackbar("PDF preparation started successfully", "success");
+
+    // Small delay for UX smoothness
+    setTimeout(() => {
+      navigate(`/project/${PROJECT_ID}/secondary`);
+    }, 800);
+
+  } catch (error) {
+    console.error(error);
+    showSnackbar(error.message, "error");
+  } finally {
+    setDownloadingPDFs(false);
+  }
+};
+
 
   return (
     <Layout>
@@ -438,38 +525,66 @@ export default function PrimarySearchPage() {
                             </Box>
                           </Button>
                         ) : (
-                          <Button
-                            onClick={handleExport}
-                            startIcon={<Download size={20} />}
-                            sx={{
-                              bgcolor: "#fff",
-                              color: "#0ea5e9",
-                              px: 3,
-                              py: 1.5,
-                              borderRadius: 2,
-                              fontWeight: 700,
-                              textTransform: "none",
-                              boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-                              "&:hover": {
+                          <>
+                            <Button
+                              onClick={() => setUploadDialog(true)}
+                              startIcon={<Upload size={20} />}
+                              sx={{
                                 bgcolor: "#fff",
-                                transform: "translateY(-2px)",
-                                boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-                              },
-                            }}
-                          >
-                            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-                              Export Results
-                            </Box>
-                            <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
-                              Export
-                            </Box>
-                          </Button>
+                                color: "#0ea5e9",
+                                px: 3,
+                                py: 1.5,
+                                borderRadius: 2,
+                                fontWeight: 700,
+                                textTransform: "none",
+                                boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+                                "&:hover": {
+                                  bgcolor: "#fff",
+                                  transform: "translateY(-2px)",
+                                  boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                                },
+                              }}
+                            >
+                              <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                                Upload File
+                              </Box>
+                              <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+                                Upload
+                              </Box>
+                            </Button>
+                            <Button
+                              onClick={handleExport}
+                              startIcon={<Download size={20} />}
+                              sx={{
+                                bgcolor: "#fff",
+                                color: "#0ea5e9",
+                                px: 3,
+                                py: 1.5,
+                                borderRadius: 2,
+                                fontWeight: 700,
+                                textTransform: "none",
+                                boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
+                                "&:hover": {
+                                  bgcolor: "#fff",
+                                  transform: "translateY(-2px)",
+                                  boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
+                                },
+                              }}
+                            >
+                              <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                                Export Results
+                              </Box>
+                              <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>
+                                Export
+                              </Box>
+                            </Button>
+                          </>
                         )}
                       </Box>
                     </Box>
                   </Box>
 
-                  {/* Progress Bar */}
+                  {/* Enhanced Progress Bar */}
                   <AnimatePresence>
                     {running && (
                       <motion.div
@@ -486,19 +601,24 @@ export default function PrimarySearchPage() {
                         >
                           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                              <Box
-                                sx={{
-                                  width: 40,
-                                  height: 40,
-                                  borderRadius: 2,
-                                  background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                               >
-                                <Filter size={20} color="#fff" />
-                              </Box>
+                                <Box
+                                  sx={{
+                                    width: 40,
+                                    height: 40,
+                                    borderRadius: 2,
+                                    background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <Filter size={20} color="#fff" />
+                                </Box>
+                              </motion.div>
                               <Box>
                                 <Typography variant="body1" sx={{ fontWeight: 700, color: "#075985", fontSize: { xs: "0.875rem", sm: "1rem" } }}>
                                   Processing Primary Screening
@@ -508,17 +628,22 @@ export default function PrimarySearchPage() {
                                 </Typography>
                               </Box>
                             </Box>
-                            <Chip 
-                              label={`${Math.round(progress)}%`}
-                              sx={{
-                                background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
-                                color: "#fff",
-                                fontWeight: 800,
-                                fontSize: "1rem",
-                                height: 36,
-                                px: 1,
-                              }}
-                            />
+                            <motion.div
+                              animate={{ scale: [1, 1.05, 1] }}
+                              transition={{ duration: 1.5, repeat: Infinity }}
+                            >
+                              <Chip 
+                                label={`${Math.round(progress)}%`}
+                                sx={{
+                                  background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                                  color: "#fff",
+                                  fontWeight: 800,
+                                  fontSize: "1rem",
+                                  height: 36,
+                                  px: 1,
+                                }}
+                              />
+                            </motion.div>
                           </Box>
                           <LinearProgress 
                             variant="determinate" 
@@ -547,9 +672,8 @@ export default function PrimarySearchPage() {
                     sx={{ 
                       display: "grid",
                       gridTemplateColumns: { 
-                        xs: "repeat(2, 1fr)", 
+                        xs: "1fr", 
                         sm: "repeat(3, 1fr)", 
-                        md: "repeat(5, 1fr)" 
                       },
                       gap: { xs: 2, md: 3 },
                       mb: 4,
@@ -576,20 +700,6 @@ export default function PrimarySearchPage() {
                         icon: XCircle, 
                         gradient: "linear-gradient(135deg, #ef4444 0%, #f87171 100%)",
                         bgGradient: "linear-gradient(135deg, #fecaca 0%, #fca5a5 100%)",
-                      },
-                      { 
-                        label: "Pending", 
-                        value: stats.pending, 
-                        icon: Clock, 
-                        gradient: "linear-gradient(135deg, #f59e0b 0%, #eab308 100%)",
-                        bgGradient: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
-                      },
-                      { 
-                        label: "Inclusion Rate", 
-                        value: `${stats.inclusionRate}%`, 
-                        icon: TrendingUp, 
-                        gradient: "linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%)",
-                        bgGradient: "linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%)",
                       },
                     ].map((stat, idx) => (
                       <motion.div
@@ -715,7 +825,6 @@ export default function PrimarySearchPage() {
                               <MenuItem value="all">All Decisions</MenuItem>
                               <MenuItem value="Include">Include</MenuItem>
                               <MenuItem value="Exclude">Exclude</MenuItem>
-                              <MenuItem value="Pending">Pending</MenuItem>
                             </Select>
                           </FormControl>
                         </Box>
@@ -738,11 +847,9 @@ export default function PrimarySearchPage() {
                             {pagedRows.map((row) => (
                               <TableRow 
                                 key={row.id}
-                                onClick={() => navigate(`/project/${PROJECT_ID}/primary/article/${row.article_id || row.PMID}`, { state: row })}
                                 sx={{
                                   "&:hover": {
                                     bgcolor: "#eff6ff",
-                                    cursor: "pointer",
                                   },
                                   transition: "background-color 0.2s ease",
                                 }}
@@ -790,10 +897,7 @@ export default function PrimarySearchPage() {
                                     <Tooltip title="View Details">
                                       <IconButton
                                         size="small"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedRow(row);
-                                        }}
+                                        onClick={() => navigate(`/project/${PROJECT_ID}/primary/article/${row.article_id || row.PMID}`, { state: row })}
                                         sx={{
                                           color: "#0284c7",
                                           "&:hover": { bgcolor: "#eff6ff" }
@@ -894,6 +998,108 @@ export default function PrimarySearchPage() {
                         </Box>
                       )}
                     </Card>
+
+                   {/* Secondary Screening CTA - Sticky Bottom Right */}
+{stats.included > 0 && (
+  <motion.div
+    initial={{ opacity: 0, x: 100 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ duration: 0.5, delay: 0.3 }}
+    style={{
+      position: "fixed",
+      bottom: 32,
+      right: 32,
+      zIndex: 1000,
+    }}
+  >
+    <Tooltip
+      title={
+        downloadingPDFs
+          ? "Preparing PDFs for secondary screening..."
+          : `${stats.included} articles ready for full-text review`
+      }
+      placement="left"
+    >
+      {/* Tooltip requires span when button can be disabled */}
+      <span>
+        <Button
+          onClick={handleStartSecondaryScreening}
+          disabled={downloadingPDFs}
+          variant="contained"
+          endIcon={
+            downloadingPDFs ? <RefreshCw size={20} /> : <ChevronRight size={24} />
+          }
+          sx={{
+            background: downloadingPDFs
+              ? "linear-gradient(135deg, #6ee7b7 0%, #34d399 100%)"
+              : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+            color: "#fff",
+            px: 4,
+            py: 2,
+            borderRadius: 3,
+            fontWeight: 700,
+            fontSize: "1rem",
+            textTransform: "none",
+            boxShadow: "0 8px 32px rgba(16, 185, 129, 0.4)",
+            transition: "all 0.3s ease",
+            "&:hover": downloadingPDFs
+              ? {}
+              : {
+                  background:
+                    "linear-gradient(135deg, #059669 0%, #047857 100%)",
+                  transform: "translateY(-4px) scale(1.02)",
+                  boxShadow:
+                    "0 12px 48px rgba(16, 185, 129, 0.5)",
+                },
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              mr: 1,
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{ fontSize: "0.7rem", opacity: 0.9, lineHeight: 1 }}
+            >
+              Next Step
+            </Typography>
+            <Typography
+              variant="body1"
+              sx={{ fontSize: "1rem", fontWeight: 800, lineHeight: 1.2 }}
+            >
+              {downloadingPDFs ? "Preparing PDFs..." : "Secondary Screening"}
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              bgcolor: "rgba(255,255,255,0.2)",
+              borderRadius: "50%",
+              width: 32,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              ml: 1,
+            }}
+          >
+            <Typography sx={{ fontWeight: 800, fontSize: "0.875rem" }}>
+              {stats.included}
+            </Typography>
+          </Box>
+        </Button>
+      </span>
+    </Tooltip>
+  </motion.div>
+)}
+
                   </motion.div>
                 ) : (
                   <motion.div
@@ -910,7 +1116,7 @@ export default function PrimarySearchPage() {
                         borderRadius: 4,
                         border: "2px dashed #bae6fd",
                         background: "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)",
-                        boxShadow: "0 10px 40px rgba(14, 165, 233, 0.15)",
+                        boxShadow: "0 10px 40px rgba(55, 66, 71, 0.15)",
                         position: "relative",
                         overflow: "hidden",
                       }}
@@ -954,8 +1160,9 @@ export default function PrimarySearchPage() {
                           variant="contained"
                           startIcon={<Play size={20} />}
                           endIcon={<ArrowRight size={20} />}
+                          disabled={running}
                           sx={{
-                            background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+                            background: running ? "#94a3b8" : "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
                             px: 4,
                             py: 1.5,
                             borderRadius: 2,
@@ -963,14 +1170,18 @@ export default function PrimarySearchPage() {
                             textTransform: "none",
                             fontSize: "1rem",
                             boxShadow: "0 4px 16px rgba(14, 165, 233, 0.3)",
-                            "&:hover": {
+                            "&:hover": running ? {} : {
                               background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)",
                               transform: "translateY(-2px)",
                               boxShadow: "0 8px 24px rgba(14, 165, 233, 0.4)",
+                            },
+                            "&:disabled": {
+                              background: "#94a3b8",
+                              color: "#e2e8f0",
                             }
                           }}
                         >
-                          Start Primary Screening
+                          {running ? "Processing..." : "Start Primary Screening"}
                         </Button>
                       </Box>
                     </Card>
@@ -981,10 +1192,10 @@ export default function PrimarySearchPage() {
           </Fade>
         </Container>
 
-        {/* Confirmation Dialog */}
+        {/* Dialogs */}
         <Dialog
           open={confirmDialog}
-          onClose={() => setConfirmDialog(false)}
+          onClose={() => !running && setConfirmDialog(false)}
           disableRestoreFocus
           PaperProps={{
             sx: {
@@ -1016,12 +1227,14 @@ export default function PrimarySearchPage() {
           <DialogActions sx={{ p: 3, pt: 0 }}>
             <Button 
               onClick={() => setConfirmDialog(false)}
+              disabled={running}
               sx={{ textTransform: "none", fontWeight: 600 }}
             >
               Cancel
             </Button>
             <Button 
               onClick={handleRunScreening}
+              disabled={running}
               variant="contained"
               startIcon={<Play size={18} />}
               sx={{
@@ -1029,18 +1242,20 @@ export default function PrimarySearchPage() {
                 textTransform: "none",
                 fontWeight: 700,
                 px: 3,
+                "&:disabled": {
+                  background: "#94a3b8",
+                }
               }}
             >
-              Start Screening
+              {running ? "Processing..." : "Start Screening"}
             </Button>
           </DialogActions>
         </Dialog>
 
-        {/* Detail Modal */}
         <Dialog
-          open={!!selectedRow}
-          onClose={() => setSelectedRow(null)}
-          maxWidth="md"
+          open={uploadDialog}
+          onClose={() => setUploadDialog(false)}
+          maxWidth="sm"
           fullWidth
           PaperProps={{
             sx: {
@@ -1048,101 +1263,83 @@ export default function PrimarySearchPage() {
             }
           }}
         >
-          {selectedRow && (
-            <>
-              <DialogTitle sx={{ 
+          <DialogTitle sx={{ 
+            background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
+            color: "#fff",
+            fontWeight: 700,
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}>
+            <Upload size={24} />
+            Upload Screening File
+          </DialogTitle>
+          <DialogContent sx={{ mt: 3 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              Upload a file containing screening results to update or add new records.
+            </Alert>
+            <Box
+              sx={{
+                border: "2px dashed #bae6fd",
+                borderRadius: 3,
+                p: 4,
+                textAlign: "center",
+                bgcolor: "#f0f9ff",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  borderColor: "#0ea5e9",
+                  bgcolor: "#e0f2fe",
+                }
+              }}
+              onClick={() => document.getElementById("file-upload").click()}
+            >
+              <Upload size={48} color="#0ea5e9" style={{ marginBottom: 16 }} />
+              <Typography variant="body1" sx={{ fontWeight: 600, color: "#075985", mb: 1 }}>
+                {selectedFile ? selectedFile.name : "Click to select file"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#64748b" }}>
+                Supported formats: CSV, Excel
+              </Typography>
+              <input
+                id="file-upload"
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                style={{ display: "none" }}
+                onChange={(e) => setSelectedFile(e.target.files[0])}
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, bgcolor: "#f8fafc", borderTop: "1px solid #e2e8f0" }}>
+            <Button 
+              onClick={() => {
+                setUploadDialog(false);
+                setSelectedFile(null);
+              }}
+              sx={{ textTransform: "none", fontWeight: 600 }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleFileUpload}
+              variant="contained"
+              disabled={!selectedFile}
+              sx={{
                 background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
-                color: "#fff",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}>
-                <Box>
-                  <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.9)" }}>
-                    Article Details
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    PMID: {selectedRow.PMID}
-                  </Typography>
-                </Box>
-                <IconButton onClick={() => setSelectedRow(null)} sx={{ color: "#fff" }}>
-                  <X size={24} />
-                </IconButton>
-              </DialogTitle>
-              <DialogContent sx={{ mt: 3 }}>
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
-                      Title
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontWeight: 600, color: "#1e293b", mt: 0.5 }}>
-                      {selectedRow.title}
-                    </Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
-                      Abstract
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: "#475569", mt: 0.5, lineHeight: 1.7 }}>
-                      {selectedRow.abstract}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 3 }}>
-                    <Box>
-                      <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
-                        Decision
-                      </Typography>
-                      <Box sx={{ mt: 0.5 }}>
-                        <Chip
-                          label={selectedRow.decision || "Pending"}
-                          sx={{
-                            fontWeight: 700,
-                            bgcolor: selectedRow.decision === "Include" ? "#dcfce7" : selectedRow.decision === "Exclude" ? "#fee2e2" : "#fef3c7",
-                            color: selectedRow.decision === "Include" ? "#15803d" : selectedRow.decision === "Exclude" ? "#b91c1c" : "#a16207",
-                          }}
-                        />
-                      </Box>
-                    </Box>
-                    <Box>
-                      <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
-                        Exclusion Criteria
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: "#475569", mt: 0.5 }}>
-                        {selectedRow.exclusion_criteria || "None"}
-                      </Typography>
-                    </Box>
-                  </Box>
-                  <Box>
-                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem" }}>
-                      Rationale
-                    </Typography>
-                    <Box sx={{ bgcolor: "#f8fafc", borderRadius: 2, p: 2, mt: 0.5 }}>
-                      <Typography variant="body2" sx={{ color: "#475569" }}>
-                        {selectedRow.rationale || "—"}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Box>
-              </DialogContent>
-              <DialogActions sx={{ p: 3, bgcolor: "#f8fafc", borderTop: "1px solid #e2e8f0" }}>
-                <Button
-                  onClick={() => setSelectedRow(null)}
-                  variant="contained"
-                  sx={{
-                    background: "linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)",
-                    textTransform: "none",
-                    fontWeight: 600,
-                    borderRadius: 2,
-                  }}
-                >
-                  Close
-                </Button>
-              </DialogActions>
-            </>
-          )}
+                textTransform: "none",
+                fontWeight: 700,
+                px: 3,
+                "&:disabled": {
+                  background: "#e2e8f0",
+                  color: "#94a3b8",
+                }
+              }}
+            >
+              Upload
+            </Button>
+          </DialogActions>
         </Dialog>
 
-        {/* Snackbar */}
         <Snackbar
           open={snackbar.open}
           autoHideDuration={4000}

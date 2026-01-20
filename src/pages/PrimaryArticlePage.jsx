@@ -357,15 +357,15 @@ export default function PrimaryArticlePage() {
               {/* OVERRIDE DECISION SECTION */}
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
                 <Card sx={{ p: { xs: 3, md: 4 }, borderRadius: 4, boxShadow: "0 12px 40px rgba(0,0,0,0.12)",
-                  border: "3px solid", borderColor: overrideMode ? "#f59e0b" : "rgba(2, 132, 199, 0.3)",
+                  border: "3px solid", borderColor: overrideMode ? "#0b84f5" : "rgba(2, 132, 199, 0.3)",
                   background: overrideMode 
-                    ? "linear-gradient(135deg, rgba(254, 243, 199, 0.95) 0%, rgba(253, 230, 138, 0.95) 100%)"
+                    ? "linear-gradient(135deg, rgba(254, 243, 199, 0.95) 0%, rgba(215, 223, 235, 0.3) 100%)"
                     : "rgba(255,255,255,0.95)",
                   backdropFilter: "blur(20px)", transition: "all 0.4s ease" }}>
                   
                   <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3, pb: 3,
                     borderBottom: "3px solid", borderImage: overrideMode 
-                      ? "linear-gradient(90deg, #f59e0b, transparent) 1"
+                      ? "linear-gradient(90deg, #0b8cf5, transparent) 1"
                       : "linear-gradient(90deg, #0284c7, transparent) 1",
                     flexDirection: { xs: "column", sm: "row" }, gap: 2 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
@@ -373,7 +373,7 @@ export default function PrimaryArticlePage() {
                         transition={{ duration: 0.5 }}>
                         <Box sx={{ width: 48, height: 48, borderRadius: 2, display: "flex", alignItems: "center",
                           justifyContent: "center", background: overrideMode 
-                            ? "linear-gradient(135deg, #f59e0b 0%, #eab308 100%)"
+                            ? "linear-gradient(135deg, #d6cbb8d5 0%, #d4e6ee 100%)"
                             : "linear-gradient(135deg, #0284c7 0%, #0891b2 100%)",
                           boxShadow: "0 4px 12px rgba(0,0,0,0.2)" }}>
                           <Shield color="#fff" size={24} />
@@ -401,7 +401,7 @@ export default function PrimaryArticlePage() {
                       </Button>
                     ) : (
                       <Chip label="Override Mode Active" icon={<AlertTriangle size={16} />}
-                        sx={{ background: "linear-gradient(135deg, #f59e0b 0%, #eab308 100%)", color: "#fff",
+                        sx={{ background: "linear-gradient(135deg, #0b70f5 0%, #4d92a377 100%)", color: "#fff",
                           fontWeight: 700, height: 36, boxShadow: "0 4px 12px rgba(245, 158, 11, 0.4)",
                           "& .MuiChip-icon": { color: "#fff" } }} />
                     )}

@@ -111,9 +111,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
       formData.append("status", projectData.status);
 
       // Handle criteria - either custom or IZIEL template
-      if (useCustomCriteria && projectData.customCriteria.trim()) {
-        formData.append("custom_criteria", projectData.customCriteria.trim());
-      } else {
+      if (useCustomCriteria) {
         if (projectData.primaryCriteria.trim()) {
           formData.append("primary_criteria", projectData.primaryCriteria.trim());
         }
@@ -212,7 +210,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
       {/* Header */}
       <Box
         sx={{
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          background: "linear-gradient(135deg, #1E88E5 0%, #1565C0 100%)",
           p: 3,
           position: "relative",
           overflow: "hidden",
@@ -300,7 +298,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
             {/* Project Title */}
             <Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-                <FileText size={18} color="#667eea" />
+                <FileText size={18} color="#1976D2" />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
                   Project Title *
                 </Typography>
@@ -312,12 +310,12 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                 fullWidth
                 placeholder="Enter project title"
                 disabled={loading}
-                error={error && !projectData.title}
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     borderRadius: 2,
-                    "&:hover fieldset": { borderColor: "#667eea" },
-                    "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                    bgcolor: "#FAFAFA",
+                    "&:hover fieldset": { borderColor: "#2196F3" },
+                    "&.Mui-focused fieldset": { borderColor: "#1976D2", borderWidth: 2 }
                   }
                 }}
               />
@@ -326,7 +324,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
             {/* Owner Field */}
             <Box>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-                <User size={18} color="#667eea" />
+                <User size={18} color="#1976D2" />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
                   Project Owner *
                 </Typography>
@@ -338,12 +336,12 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                 fullWidth
                 placeholder="Enter owner name"
                 disabled={loading}
-                error={error && !projectData.owner}
                 sx={{
                   "& .MuiOutlinedInput-root": {
                     borderRadius: 2,
-                    "&:hover fieldset": { borderColor: "#667eea" },
-                    "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                    bgcolor: "#FAFAFA",
+                    "&:hover fieldset": { borderColor: "#2196F3" },
+                    "&.Mui-focused fieldset": { borderColor: "#1976D2", borderWidth: 2 }
                   }
                 }}
               />
@@ -354,7 +352,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
               <Box sx={{ flex: 1 }}>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Calendar size={18} color="#667eea" />
+                    <Calendar size={18} color="#1976D2" />
                     <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
                       Start Date
                     </Typography>
@@ -375,8 +373,9 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                   sx={{
                     "& .MuiOutlinedInput-root": {
                       borderRadius: 2,
-                      "&:hover fieldset": { borderColor: "#667eea" },
-                      "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                      bgcolor: "#FAFAFA",
+                      "&:hover fieldset": { borderColor: "#2196F3" },
+                      "&.Mui-focused fieldset": { borderColor: "#1976D2", borderWidth: 2 }
                     }
                   }}
                 />
@@ -384,7 +383,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
 
               <Box sx={{ flex: 1 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-                  <Target size={18} color="#667eea" />
+                  <Target size={18} color="#1976D2" />
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
                     Status
                   </Typography>
@@ -399,8 +398,9 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                   sx={{
                     "& .MuiOutlinedInput-root": {
                       borderRadius: 2,
-                      "&:hover fieldset": { borderColor: "#667eea" },
-                      "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                      bgcolor: "#FAFAFA",
+                      "&:hover fieldset": { borderColor: "#2196F3" },
+                      "&.Mui-focused fieldset": { borderColor: "#1976D2", borderWidth: 2 }
                     }
                   }}
                 >
@@ -414,13 +414,28 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
 
             {/* Criteria Selection Toggle */}
             <Box>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Target size={18} color="#667eea" />
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                    Selection Criteria
-                  </Typography>
-                </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+                <Target size={18} color="#2196F3" />
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                  Selection Criteria Template
+                </Typography>
+              </Box>
+
+              <Box sx={{ 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "space-between",
+                p: 2,
+                bgcolor: "#E3F2FD",
+                borderRadius: 2,
+                mb: 2,
+                border: "1px solid #BBDEFB"
+              }}>
+                <Typography variant="body2" sx={{ color: "#1565C0", fontWeight: 500 }}>
+                  {useCustomCriteria 
+                    ? "If not following IZIEL template, add primary and secondary criteria"
+                    : "Following IZIEL template - no additional criteria needed"}
+                </Typography>
                 <Button
                   size="small"
                   onClick={() => setUseCustomCriteria(!useCustomCriteria)}
@@ -428,18 +443,26 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                     textTransform: "none",
                     fontSize: "0.75rem",
                     fontWeight: 600,
-                    color: useCustomCriteria ? "#dc3545" : "#0d6efd",
+                    bgcolor: useCustomCriteria ? "#fff" : "#2196F3",
+                    color: useCustomCriteria ? "#2196F3" : "#fff",
+                    px: 2,
+                    py: 0.5,
+                    borderRadius: 1.5,
+                    border: useCustomCriteria ? "1px solid #2196F3" : "none",
+                    "&:hover": {
+                      bgcolor: useCustomCriteria ? "#f5f5f5" : "#1976D2",
+                    }
                   }}
                 >
-                  {useCustomCriteria ? "Use IZIEL Template" : "Add Custom Criteria"}
+                  {useCustomCriteria ? "Use IZIEL Template" : "For External Criteria"}
                 </Button>
               </Box>
 
-              {!useCustomCriteria ? (
+              {useCustomCriteria ? (
                 <>
-                  {/* IZIEL Template Criteria */}
+                  {/* External Template Criteria */}
                   <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" sx={{ mb: 1.5, color: "#64748b", fontWeight: 600 }}>
+                    <Typography variant="body2" sx={{ mb: 1.5, color: "#546E7A", fontWeight: 600 }}>
                       Primary Criteria (Optional)
                     </Typography>
                     <TextField
@@ -454,15 +477,16 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           borderRadius: 2,
-                          "&:hover fieldset": { borderColor: "#667eea" },
-                          "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                          bgcolor: "#FAFAFA",
+                          "&:hover fieldset": { borderColor: "#2196F3" },
+                          "&.Mui-focused fieldset": { borderColor: "#2196F3", borderWidth: 2 }
                         }
                       }}
                     />
                   </Box>
 
                   <Box>
-                    <Typography variant="body2" sx={{ mb: 1.5, color: "#64748b", fontWeight: 600 }}>
+                    <Typography variant="body2" sx={{ mb: 1.5, color: "#546E7A", fontWeight: 600 }}>
                       Secondary Criteria (Optional)
                     </Typography>
                     <TextField
@@ -477,52 +501,32 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           borderRadius: 2,
-                          "&:hover fieldset": { borderColor: "#667eea" },
-                          "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
+                          bgcolor: "#FAFAFA",
+                          "&:hover fieldset": { borderColor: "#2196F3" },
+                          "&.Mui-focused fieldset": { borderColor: "#2196F3", borderWidth: 2 }
                         }
                       }}
                     />
                   </Box>
 
-                  <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      Using IZIEL Template Criteria
+                  <Alert severity="info" sx={{ mt: 2, borderRadius: 2, bgcolor: "#E1F5FE", border: "1px solid #B3E5FC" }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: "#01579B" }}>
+                      External Template Criteria
                     </Typography>
-                    <Typography variant="caption">
-                      Following standardized inclusion/exclusion criteria 
+                    <Typography variant="caption" sx={{ color: "#0277BD" }}>
+                      You are using custom criteria instead of the standard IZIEL template
                     </Typography>
                   </Alert>
                 </>
               ) : (
-                <>
-                  {/* Custom Criteria */}
-                  <TextField
-                    name="customCriteria"
-                    value={projectData.customCriteria}
-                    onChange={handleChange}
-                    fullWidth
-                    multiline
-                    rows={4}
-                    placeholder="Enter your custom selection criteria..."
-                    disabled={loading}
-                    sx={{
-                      "& .MuiOutlinedInput-root": {
-                        borderRadius: 2,
-                        "&:hover fieldset": { borderColor: "#667eea" },
-                        "&.Mui-focused fieldset": { borderColor: "#667eea", borderWidth: 2 }
-                      }
-                    }}
-                  />
-
-                  <Alert severity="warning" sx={{ mt: 2, borderRadius: 2 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      Note: Custom Criteria
-                    </Typography>
-                    <Typography variant="caption">
-                      You are not following the standard IZIEL template criteria. Ensure to add Inclusion / Exclusion 
-                    </Typography>
-                  </Alert>
-                </>
+                <Alert severity="success" sx={{ borderRadius: 2, bgcolor: "#E8F5E9", border: "1px solid #C8E6C9" }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: "#2E7D32" }}>
+                    Using IZIEL Template
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "#388E3C" }}>
+                    Following standardized inclusion/exclusion criteria
+                  </Typography>
+                </Alert>
               )}
             </Box>
 
@@ -530,20 +534,12 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
             <Box>
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1.5 }}>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Upload size={18} color="#667eea" />
+                  <Upload size={18} color="#1976D2" />
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
                     IFU Document *
                   </Typography>
                 </Box>
-                {ifuFile ? (
-                  <Chip icon={<Check size={14} />} label="Uploaded" size="small"
-                    sx={{ bgcolor: "#d1e7dd", color: "#0f5132", fontWeight: 700, fontSize: "0.7rem" }}
-                  />
-                ) : (
-                  <Chip icon={<AlertCircle size={14} />} label="Required" size="small"
-                    sx={{ bgcolor: "#f8d7da", color: "#842029", fontWeight: 700, fontSize: "0.7rem" }}
-                  />
-                )}
+           
               </Box>
               
               {!ifuFile ? (
@@ -554,24 +550,24 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                   sx={{
                     p: 3,
                     borderRadius: 2,
-                    border: "2px dashed #cbd5e1",
-                    bgcolor: "#f8fafc",
+                    border: "2px dashed #90CAF9",
+                    bgcolor: "#E3F2FD",
                     textTransform: "none",
                     transition: "all 0.3s ease",
                     "&:hover": {
-                      borderColor: "#667eea",
-                      bgcolor: "#f1f5f9",
+                      borderColor: "#1976D2",
+                      bgcolor: "#BBDEFB",
                       transform: "translateY(-2px)",
-                      boxShadow: "0 4px 12px rgba(102, 126, 234, 0.15)",
+                      boxShadow: "0 4px 12px rgba(25, 118, 210, 0.2)",
                     }
                   }}
                 >
                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
-                    <Upload size={32} color="#667eea" />
-                    <Typography variant="body2" sx={{ color: "#475569", fontWeight: 600 }}>
+                    <Upload size={32} color="#1976D2" />
+                    <Typography variant="body2" sx={{ color: "#0D47A1", fontWeight: 600 }}>
                       Click to upload IFU PDF (Required)
                     </Typography>
-                    <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+                    <Typography variant="caption" sx={{ color: "#1565C0" }}>
                       PDF only • Maximum 10MB
                     </Typography>
                   </Box>
@@ -588,8 +584,8 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                   sx={{
                     p: 2,
                     borderRadius: 2,
-                    border: "2px solid #667eea",
-                    bgcolor: "#f1f5f9",
+                    border: "2px solid #2196F3",
+                    bgcolor: "#E3F2FD",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
@@ -601,11 +597,11 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                         width: 40,
                         height: 40,
                         borderRadius: 2,
-                        background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                        background: "linear-gradient(135deg, #1E88E5 0%, #1565C0 100%)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        boxShadow: "0 4px 12px rgba(102, 126, 234, 0.3)",
+                        boxShadow: "0 4px 12px rgba(25, 118, 210, 0.3)",
                       }}
                     >
                       <File size={20} color="#fff" />
@@ -644,8 +640,8 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
             borderRadius: 2,
             textTransform: "none",
             fontWeight: 600,
-            color: "#64748b",
-            "&:hover": { bgcolor: "#f1f5f9" }
+            color: "#546E7A",
+            "&:hover": { bgcolor: "#ECEFF1" }
           }}
         >
           Cancel
@@ -660,15 +656,15 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
             borderRadius: 2,
             textTransform: "none",
             fontWeight: 700,
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            boxShadow: "0 4px 12px rgba(102, 126, 234, 0.3)",
+            background: "linear-gradient(135deg, #1E88E5 0%, #1565C0 100%)",
+            boxShadow: "0 4px 12px rgba(25, 118, 210, 0.3)",
             "&:hover": {
               transform: "translateY(-2px)",
-              boxShadow: "0 8px 24px rgba(102, 126, 234, 0.4)",
+              boxShadow: "0 8px 24px rgba(25, 118, 210, 0.4)",
             },
             "&:disabled": {
-              background: "#cbd5e1",
-              color: "#94a3b8",
+              background: "#B0BEC5",
+              color: "#ECEFF1",
             }
           }}
         >
