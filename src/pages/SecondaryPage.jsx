@@ -475,61 +475,55 @@ export default function SecondaryScreen() {
   };
 
   const handleRunSecondaryScreening = async () => {
-    if (selectedLiteratureIds.size === 0) {
-      showNotification("Please select at least one article", "error");
-      return;
-    }
+  if (selectedLiteratureIds.size === 0) {
+    showNotification("Please select at least one article", "error");
+    return;
+  }
 
-    setLoadingSecondary(true);
+  setLoadingSecondary(true);
 
-    const isAllSelected = selectedLiteratureIds.size === filteredRows.length;
+  const isAllSelected = selectedLiteratureIds.size === filteredRows.length;
 
-    try {
-      if (isAllSelected) {
-        const response = await fetch(
-          `http://localhost:5000/api/secondary/secondary-screen/${projectId}`,
-          { method: "POST" }
-        );
-        
-        if (!response.ok) {
-          throw new Error("Screening failed");
-        }
-      } else {
-        const formData = new FormData();
-        [...selectedLiteratureIds].forEach(id =>
-          formData.append("literature_ids", id)
-        );
-
-        const response = await fetch(
-          `http://localhost:5000/api/secondary/secondary-screen/selected/${projectId}`,
-          { method: "POST", body: formData }
-        );
-        
-        if (!response.ok) {
-          throw new Error("Screening failed");
-        }
+  try {
+    if (isAllSelected) {
+      const response = await fetch(
+        `http://localhost:5000/api/secondary/secondary-screen/${projectId}`,
+        { method: "POST" }
+      );
+      
+      if (!response.ok) {
+        throw new Error("Screening failed");
       }
+    } else {
+      const formData = new FormData();
+      [...selectedLiteratureIds].forEach(id =>
+        formData.append("article_ids", id)  // Changed to article_ids
+      );
 
-      showNotification("Secondary screening completed successfully!");
-      setSelectedLiteratureIds(new Set());
-      setSelectAll(false);
+      const response = await fetch(
+        `http://localhost:5000/api/secondary/secondary-screen/selected/${projectId}`,
+        { method: "POST", body: formData }
+      );
       
-      // Reload PDF status to get updated secondary_screened status
-      await loadPdfStatus();
-      
-      // Trigger results refresh
-      setRefreshResults(prev => prev + 1);
-      
-      // Switch to results view
-      setActiveView("results");
-    } catch (error) {
-      console.error(error);
-      showNotification("Error running secondary screening", "error");
-    } finally {
-      setLoadingSecondary(false);
+      if (!response.ok) {
+        throw new Error("Screening failed");
+      }
     }
-  };
 
+    showNotification("Secondary screening completed successfully!");
+    setSelectedLiteratureIds(new Set());
+    setSelectAll(false);
+    
+    await loadPdfStatus();
+    setRefreshResults(prev => prev + 1);
+    setActiveView("results");
+  } catch (error) {
+    console.error(error);
+    showNotification("Error running secondary screening", "error");
+  } finally {
+    setLoadingSecondary(false);
+  }
+};
   const openPdf = async (filename) => {
     try {
       const res = await fetch(
