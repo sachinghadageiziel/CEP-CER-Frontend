@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { MsalProvider, useIsAuthenticated } from '@azure/msal-react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { MsalProvider, useIsAuthenticated, useMsal } from '@azure/msal-react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import { msalConfig } from './authConfig';
+import { useState, useEffect } from 'react';
 
 // Pages
 import HomePage from "./pages/HomePage";
@@ -18,12 +19,32 @@ import Profile from './pages/Profile';
 // Initialize MSAL instance
 const msalInstance = new PublicClientApplication(msalConfig);
 
+// Loading Component
+function LoadingScreen() {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="text-center">
+        <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-lg font-semibold text-gray-700">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
 // Protected Route Component
 function ProtectedRoute({ children }) {
   const isAuthenticated = useIsAuthenticated();
+  const { inProgress } = useMsal();
+  const location = useLocation();
+  
+  // Wait for MSAL to finish initialization
+  if (inProgress !== 'none') {
+    return <LoadingScreen />;
+  }
   
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // Save the attempted URL to redirect back after login
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
   return children;
@@ -32,9 +53,18 @@ function ProtectedRoute({ children }) {
 // Public Route Component (redirects to home if already authenticated)
 function PublicRoute({ children }) {
   const isAuthenticated = useIsAuthenticated();
+  const { inProgress } = useMsal();
+  const location = useLocation();
+  
+  // Wait for MSAL to finish initialization
+  if (inProgress !== 'none') {
+    return <LoadingScreen />;
+  }
   
   if (isAuthenticated) {
-    return <Navigate to="/home" replace />;
+    // Redirect to the page they were trying to access, or home
+    const from = location.state?.from?.pathname || '/home';
+    return <Navigate to={from} replace />;
   }
   
   return children;
@@ -42,6 +72,12 @@ function PublicRoute({ children }) {
 
 function AppRoutes() {
   const isAuthenticated = useIsAuthenticated();
+  const { inProgress } = useMsal();
+
+  // Show loading screen while MSAL is initializing
+  if (inProgress !== 'none') {
+    return <LoadingScreen />;
+  }
 
   return (
     <Routes>
@@ -161,6 +197,28 @@ function AppRoutes() {
 }
 
 function App() {
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  useEffect(() => {
+    // Initialize MSAL and handle redirects
+    const initializeMsal = async () => {
+      try {
+        await msalInstance.initialize();
+        await msalInstance.handleRedirectPromise();
+      } catch (error) {
+        console.error('MSAL initialization error:', error);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initializeMsal();
+  }, []);
+
+  if (isInitializing) {
+    return <LoadingScreen />;
+  }
+
   return (
     <MsalProvider instance={msalInstance}>
       <BrowserRouter>

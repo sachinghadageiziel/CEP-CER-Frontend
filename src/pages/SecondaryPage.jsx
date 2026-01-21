@@ -101,7 +101,7 @@ function ManualPdfUploadPopup({ open, pmid, literatureId, onClose, onUpload, mod
 
     setUploading(true);
     try {
-      await onUpload(file, literatureId);
+      await onUpload(file, literatureId); // ✅ Pass literatureId, not pmid
       setFile(null);
       setUploading(false);
       onClose();
@@ -427,15 +427,22 @@ export default function SecondaryScreen() {
       const res = await fetch(`http://localhost:5000/api/secondary/pdf-download/existing?project_id=${projectId}`);
       const data = await res.json();
       
+      console.log("📥 API Response:", data); // DEBUG
+      
       if (data.exists && data.screening) {
-        const formattedData = data.screening.map(item => ({
-          article_id: item.PMID,
-          literature_id: item.Literature_ID, // Add this to store the actual literature_id
-          pmcid: item.PMCID,
-          pdf_link: item.PDF_Link,
-          status: item.Status,
-          secondary_screened: item.Secondary_Screened
-        }));
+        const formattedData = data.screening.map(item => {
+          console.log("Processing item:", item); // DEBUG
+          return {
+            article_id: item.PMID,
+            literature_id: item.Literature_ID, // ✅ NOW EXTRACTING literature_id
+            pmcid: item.PMCID,
+            pdf_link: item.PDF_Link,
+            status: item.Status,
+            secondary_screened: item.Secondary_Screened
+          };
+        });
+        
+        console.log("✅ Formatted data:", formattedData); // DEBUG
         setPdfStatusData(formattedData);
       }
     } catch (error) {
@@ -452,26 +459,44 @@ export default function SecondaryScreen() {
 
   /* ---------- ACTIONS ---------- */
   const handleUploadPdf = async (file, literatureId) => {
-    if (!file || !literatureId) return;
+    if (!file || !literatureId) {
+      console.error("❌ Missing file or literature_id:", { file, literatureId });
+      showNotification("Missing file or article information", "error");
+      return;
+    }
+
+    console.log("📤 Uploading PDF with Literature ID:", literatureId);
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/secondary/upload-pdf/${projectId}/${literatureId}`,
-        { method: "POST", body: formData }
-      );
+      const uploadUrl = `http://localhost:5000/api/secondary/upload-pdf/${projectId}/${literatureId}`;
+      console.log("📡 Upload URL:", uploadUrl);
+      
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        body: formData
+      });
+      
+      const responseData = await response.json();
+      console.log("📨 Upload Response:", responseData);
       
       if (!response.ok) {
-        throw new Error("Upload failed");
+        throw new Error(responseData.detail || "Upload failed");
       }
       
+      // ✅ Reload PDF status data to reflect changes
       await loadPdfStatus();
+      
+      // ✅ Force a re-render by updating the state
+      setPdfStatusData(prev => [...prev]);
+      
       showNotification("PDF uploaded and processed successfully!");
     } catch (error) {
-      console.error("Error uploading PDF:", error);
-      showNotification("Error uploading PDF", "error");
+      console.error("❌ Error uploading PDF:", error);
+      showNotification(error.message || "Error uploading PDF", "error");
+      throw error; // Re-throw to let modal handle the error state
     }
   };
 
@@ -483,12 +508,10 @@ export default function SecondaryScreen() {
 
     setLoadingSecondary(true);
 
-    // Check if ALL articles are selected (Select All was used)
     const isAllSelected = selectedLiteratureIds.size === filteredRows.length;
 
     try {
       if (isAllSelected) {
-        // SCREEN ALL ARTICLES - Hit the /secondary-screen/{project_id} endpoint
         console.log("Running screening for ALL articles");
         const response = await fetch(
           `http://localhost:5000/api/secondary/secondary-screen/${projectId}`,
@@ -500,16 +523,12 @@ export default function SecondaryScreen() {
           throw new Error(errorData.detail || "Screening failed");
         }
         
-        // Clear screened article tracking since all were screened
         setScreenedArticleIds([]);
         
       } else {
-        // SCREEN ONLY SELECTED ARTICLES - Hit the /secondary-screen/selected/{project_id} endpoint
         console.log("Running screening for SELECTED articles");
         const articleIds = [...selectedLiteratureIds];
         
-        // Since your backend expects literature_ids (not PMIDs), we'll use the PMIDs as-is
-        // Your backend should handle the conversion from PMID to literature_id
         const formData = new FormData();
         articleIds.forEach(id => {
           formData.append('literature_ids', id);
@@ -529,7 +548,6 @@ export default function SecondaryScreen() {
           throw new Error(errorData.detail || "Screening failed");
         }
         
-        // Track which articles were screened (using PMIDs for UI)
         setScreenedArticleIds(articleIds);
       }
 
@@ -581,7 +599,7 @@ export default function SecondaryScreen() {
       newSet.add(articleId);
     }
     setSelectedLiteratureIds(newSet);
-    setSelectAll(newSet.size === filteredRows.length && filteredRows.length > 0);
+    setSetAll(newSet.size === filteredRows.length && filteredRows.length > 0);
   };
 
   const toggleSelectAll = () => {
@@ -647,11 +665,11 @@ export default function SecondaryScreen() {
 
   const shouldShowUploadButton = (status) => {
     const normalized = status?.toLowerCase() || "";
-    // Added "not_downloaded" and "not downloaded" to the list
     return normalized === "pending" || 
            normalized === "not_found" || 
            normalized === "not_downloaded" || 
            normalized === "not downloaded" ||
+           normalized === "failed" ||
            (!normalized);
   };
 
@@ -700,7 +718,6 @@ export default function SecondaryScreen() {
           className="bg-white rounded-2xl p-4 sm:p-5 shadow-lg border-2 border-slate-200"
         >
           <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
-            {/* Search Bar */}
             <div className="flex-1 relative group">
               <FiSearch className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors w-4 h-4 sm:w-5 sm:h-5" />
               <input
@@ -711,7 +728,6 @@ export default function SecondaryScreen() {
               />
             </div>
             
-            {/* Toggle Button */}
             <div className="flex justify-center lg:justify-end">
               <ToggleButton activeView={activeView} onToggle={setActiveView} />
             </div>
@@ -721,7 +737,6 @@ export default function SecondaryScreen() {
         {/* CONDITIONAL RENDERING BASED ON ACTIVE VIEW */}
         <AnimatePresence mode="wait">
           {activeView === "articles" ? (
-            /* ARTICLES VIEW */
             <motion.div
               key="articles"
               initial={{ opacity: 0, x: -20 }}
@@ -729,7 +744,6 @@ export default function SecondaryScreen() {
               exit={{ opacity: 0, x: 20 }}
               transition={{ duration: 0.3 }}
             >
-              {/* ACTION BUTTONS */}
               <div className="flex gap-3 mb-4">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -761,7 +775,6 @@ export default function SecondaryScreen() {
                 </motion.button>
               </div>
 
-              {/* ARTICLES TABLE */}
               <motion.div 
                 className="bg-white rounded-2xl shadow-xl border-2 border-slate-200 overflow-hidden"
               >
@@ -783,7 +796,7 @@ export default function SecondaryScreen() {
                         <th className="px-4 sm:px-6 py-3 sm:py-4 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">PMCID</th>
                         <th className="px-4 sm:px-6 py-3 sm:py-4 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Link</th>
                         <th className="px-4 sm:px-6 py-3 sm:py-4 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">PDF Status</th>
-                        <th className="px-4 sm:px-6 py-3 sm:py-4 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">SS Status</th>
+                        <th className="px-4 sm:px-6 py-3 sm:py-4 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Secondary Screening Status</th>
                         <th className="px-4 sm:px-6 py-3 sm:py-4 text-right text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Actions</th>
                       </tr>
                     </thead>
@@ -858,8 +871,9 @@ export default function SecondaryScreen() {
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => {
-                                      setUploadLiteratureId(row.literature_id); // Use literature_id from row
-                                      setUploadPmid(row.article_id);
+                                      console.log("🎯 Upload clicked for:", row);
+                                      setUploadLiteratureId(row.literature_id); // Store literature_id
+                                      setUploadPmid(row.article_id); // Store PMID for display
                                       setUploadMode("upload");
                                       setUploadModalOpen(true);
                                     }}
@@ -878,7 +892,6 @@ export default function SecondaryScreen() {
                   </table>
                 </div>
 
-                {/* PAGINATION */}
                 {totalPages > 1 && (
                   <div className="px-4 sm:px-6 py-4 sm:py-5 bg-gradient-to-r from-slate-50 to-slate-100 border-t-2 border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
                     <motion.button
@@ -909,7 +922,6 @@ export default function SecondaryScreen() {
               </motion.div>
             </motion.div>
           ) : (
-            /* RESULTS VIEW */
             <motion.div
               key="results"
               initial={{ opacity: 0, x: 20 }}
@@ -927,7 +939,6 @@ export default function SecondaryScreen() {
           )}
         </AnimatePresence>
 
-        {/* MODALS */}
         <ManualPdfUploadPopup
           open={uploadModalOpen}
           pmid={uploadPmid}
@@ -948,7 +959,6 @@ export default function SecondaryScreen() {
           pdfUrl={activePdfUrl}
         />
 
-        {/* TOAST */}
         <AnimatePresence>
           {showToast && (
             <motion.div

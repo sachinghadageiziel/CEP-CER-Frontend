@@ -485,7 +485,7 @@ export default function AddProjectDialog({ open, handleClose, handleSave }) {
                             IZIEL Template
                           </Typography>
                           <Typography variant="body2" sx={{ color: "#1565C0", mt: 0.5 }}>
-                            Following Iziel Template inclusion/exclusion criteria
+                            Following Iziel Template for inclusion/exclusion criteria
                           </Typography>
                         </Box>
                       }

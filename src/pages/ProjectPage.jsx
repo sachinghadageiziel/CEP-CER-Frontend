@@ -269,10 +269,10 @@ export default function ProjectPage() {
           }}
         >
           <Typography variant="body1" sx={{ fontWeight: 700, color: "#1B5E20", mb: 0.5 }}>
-           systematic literature review is complete.
+            literature Screening is complete.
           </Typography>
           <Typography variant="body2" sx={{ color: "#2E7D32", fontWeight: 500 }}>
-            Review Journey: Started with {literature} articles → Screened {primary} abstracts → Final selection of {secondary} quality-reviewed papers ready for analysis.
+            Started with {literature} articles → Screened {primary} abstracts 
           </Typography>
         </Alert>
       );
@@ -297,7 +297,7 @@ export default function ProjectPage() {
              Primary Screening complete - {primary} Articles selected for Secondary Screening.
           </Typography>
           <Typography variant="body2" sx={{ color: "#EF6C00", fontWeight: 500 }}>
-            Final Step: Click "Start Workflow" on Secondary Screening to download full PDFs and begin detailed quality review.
+            Final Step: Click "Start" for Secondary Screening to download full PDFs and begin detailed review.
           </Typography>
         </Alert>
       );
@@ -322,7 +322,7 @@ export default function ProjectPage() {
             Literature Search completed successfully with {literature} research articles.
           </Typography>
           <Typography variant="body2" sx={{ color: "#1565C0", fontWeight: 500 }}>
-            What's Next: Click "Start Workflow" on Primary Screening below to review article abstracts and select relevant papers.
+            What's Next: Click "Start Primary Screening " to review article abstracts and Others.
           </Typography>
         </Alert>
       );
@@ -724,7 +724,7 @@ export default function ProjectPage() {
                               pointerEvents: isPending ? "none" : "auto",
                             }}
                           >
-                            <span>{isPending ? "Complete Previous Step" : "Start Workflow"}</span>
+                            <span>{isPending ? "Complete Previous Step" : "Start Screening"}</span>
                             {isPending ? (
                               <Lock size={22} strokeWidth={2.5} />
                             ) : (
