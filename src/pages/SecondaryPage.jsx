@@ -415,7 +415,7 @@ export default function SecondaryScreen() {
   const [activePdfUrl, setActivePdfUrl] = useState(null);
   const [loadingSecondary, setLoadingSecondary] = useState(false);
   const [refreshResults, setRefreshResults] = useState(0);
-
+ 
   /* ---------- LOAD DATA ON MOUNT ---------- */
   useEffect(() => {
     loadPdfStatus();
@@ -474,7 +474,11 @@ export default function SecondaryScreen() {
     }
   };
 
-  const handleRunSecondaryScreening = async () => {
+
+
+
+  
+const handleRunSecondaryScreening = async () => {
   if (selectedLiteratureIds.size === 0) {
     showNotification("Please select at least one article", "error");
     return;
@@ -494,20 +498,34 @@ export default function SecondaryScreen() {
       if (!response.ok) {
         throw new Error("Screening failed");
       }
+      
+      // For "all selected", don't filter results
+      setScreenedArticleIds([]);
     } else {
+      const articleIds = [...selectedLiteratureIds];
+      
+      // Create FormData for the request
       const formData = new FormData();
-      [...selectedLiteratureIds].forEach(id =>
-        formData.append("article_ids", id)  // Changed to article_ids
-      );
-
+      articleIds.forEach(id => {
+        formData.append('literature_ids', id);
+      });
+      
       const response = await fetch(
         `http://localhost:5000/api/secondary/secondary-screen/selected/${projectId}`,
-        { method: "POST", body: formData }
+        {
+          method: "POST",
+          body: formData
+        }
       );
       
       if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Error details:", errorData);
         throw new Error("Screening failed");
       }
+      
+      // Track which articles were screened
+      setScreenedArticleIds(articleIds);
     }
 
     showNotification("Secondary screening completed successfully!");
@@ -524,6 +542,13 @@ export default function SecondaryScreen() {
     setLoadingSecondary(false);
   }
 };
+
+
+
+
+
+
+const [screenedArticleIds, setScreenedArticleIds] = useState([]);
   const openPdf = async (filename) => {
     try {
       const res = await fetch(
@@ -887,7 +912,12 @@ export default function SecondaryScreen() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <SecondaryResultTable projectId={projectId} search={search} refreshTrigger={refreshResults} />
+             <SecondaryResultTable 
+  projectId={projectId} 
+  search={search} 
+  refreshTrigger={refreshResults}
+  screenedArticleIds={screenedArticleIds}
+/>
             </motion.div>
           )}
         </AnimatePresence>

@@ -185,10 +185,11 @@ function DetailViewModal({ open, onClose, result }) {
 }
 
 /* ==================== SECONDARY RESULT TABLE ==================== */
-export default function SecondaryResultTable({ projectId, search, refreshTrigger }) {
+export default function SecondaryResultTable({ projectId, search, refreshTrigger, screenedArticleIds = [] }) {
   const [screeningResults, setScreeningResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterDecision, setFilterDecision] = useState("all");
+  const [showAllResults, setShowAllResults] = useState(false);
   const [page, setPage] = useState(0);
   const pageSize = 10;
   const [detailModal, setDetailModal] = useState({ open: false, result: null });
@@ -279,6 +280,13 @@ export default function SecondaryResultTable({ projectId, search, refreshTrigger
   const filteredResults = useMemo(() => {
     let filtered = screeningResults;
     
+    // Filter by screened articles (if any were specified and toggle is off)
+    if (screenedArticleIds.length > 0 && !showAllResults) {
+      filtered = filtered.filter(r => 
+        screenedArticleIds.includes(r.article_id)
+      );
+    }
+    
     // Filter by decision
     if (filterDecision !== "all") {
       filtered = filtered.filter(r => 
@@ -297,7 +305,7 @@ export default function SecondaryResultTable({ projectId, search, refreshTrigger
     }
     
     return filtered;
-  }, [screeningResults, filterDecision, search]);
+  }, [screeningResults, filterDecision, search, screenedArticleIds, showAllResults]);
 
   const paginatedResults = filteredResults.slice(page * pageSize, (page + 1) * pageSize);
   const totalPages = Math.ceil(filteredResults.length / pageSize);
@@ -391,6 +399,23 @@ export default function SecondaryResultTable({ projectId, search, refreshTrigger
 
       {/* FILTER BUTTONS */}
       <div className="flex flex-wrap gap-3">
+        {/* Show toggle button only if there are screened articles */}
+        {screenedArticleIds.length > 0 && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowAllResults(!showAllResults)}
+            className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold transition-all text-xs sm:text-sm flex items-center gap-2 ${
+              !showAllResults
+                ? "bg-purple-600 text-white shadow-lg"
+                : "bg-white border-2 border-slate-300 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            <FiFilter className="w-3 h-3 sm:w-4 sm:h-4" /> 
+            {showAllResults ? `Show Selected (${screenedArticleIds.length})` : "Show All Results"}
+          </motion.button>
+        )}
+
         <motion.button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
@@ -457,28 +482,28 @@ export default function SecondaryResultTable({ projectId, search, refreshTrigger
         <div className="overflow-x-auto">
           <table className="w-full min-w-max">
             <thead className="bg-gradient-to-r from-slate-100 to-slate-50 border-b-2 border-slate-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap sticky left-0 bg-slate-100 z-10">Article ID</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Study Type</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Device</th>
-                <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Sample Size</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Appropriate Device</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Device Application</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Patient Group</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Acceptable Report</th>
-                <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Suitability Score</th>
-                <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Data Score</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Data Source Type</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Outcome Measures</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Follow Up</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Statistical Sig.</th>
-                <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Clinical Sig.</th>
-                <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Males</th>
-                <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Females</th>
-                <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Mean Age</th>
-                <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Decision</th>
-                <th className="px-4 py-3 text-right text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap sticky right-0 bg-slate-100 z-10">Actions</th>
-              </tr>
+             <tr>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap sticky left-0 bg-slate-100 z-10">Article ID</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Study Type</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Device</th>
+  <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Sample Size</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Appropriate Device</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Device Application</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Patient Group</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Acceptable Report</th>
+  <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Suitability Score</th>
+  <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Data Score</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Data Source Type</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Outcome Measures</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Follow Up</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Statistical Sig.</th>
+  <th className="px-4 py-3 text-left text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Clinical Sig.</th>
+  <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Males</th>
+  <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Females</th>
+  <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Mean Age</th>
+  <th className="px-4 py-3 text-center text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap">Decision</th>
+  <th className="px-4 py-3 text-right text-xs font-black text-slate-700 uppercase tracking-wider whitespace-nowrap sticky right-0 bg-slate-100 z-10">Actions</th>
+</tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
