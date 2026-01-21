@@ -14,14 +14,20 @@ import {
   Alert,
   Chip,
   MenuItem,
+  Radio,
+  RadioGroup,
+  FormControlLabel,
+  FormControl,
 } from "@mui/material";
 import { X, Plus, FileText, Calendar, Upload, File, Check, AlertCircle, User, Target } from "lucide-react";
+import { useMsal } from '@azure/msal-react';
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
-export default function AddProjectDialog({ open, handleClose, handleSave, currentUser }) {
+export default function AddProjectDialog({ open, handleClose, handleSave }) {
+  const { accounts } = useMsal();
   const [projectData, setProjectData] = useState({
     title: "",
     owner: "",
@@ -29,22 +35,22 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
     status: "Active",
     primaryCriteria: "",
     secondaryCriteria: "",
-    customCriteria: "",
   });
   const [ifuFile, setIfuFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [useCustomCriteria, setUseCustomCriteria] = useState(false);
+  const [criteriaTemplate, setCriteriaTemplate] = useState("iziel"); // 'iziel' or 'external'
 
   // Set owner to logged-in user when dialog opens
   useEffect(() => {
-    if (open && currentUser) {
+    if (open && accounts.length > 0) {
+      const currentUser = accounts[0].name || accounts[0].username || "";
       setProjectData(prev => ({
         ...prev,
         owner: currentUser
       }));
     }
-  }, [open, currentUser]);
+  }, [open, accounts]);
 
   const handleChange = (e) => {
     setProjectData({ ...projectData, [e.target.name]: e.target.value });
@@ -79,6 +85,17 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
     if (fileInput) fileInput.value = null;
   };
 
+  const handleTemplateChange = (event) => {
+    setCriteriaTemplate(event.target.value);
+    // Clear criteria fields when switching templates
+    setProjectData(prev => ({
+      ...prev,
+      primaryCriteria: "",
+      secondaryCriteria: "",
+    }));
+    if (error) setError("");
+  };
+
   const handleSubmit = async () => {
     // Validation
     if (!projectData.title.trim()) {
@@ -96,6 +113,18 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
       return;
     }
 
+    // Validate external template criteria
+    if (criteriaTemplate === "external") {
+      if (!projectData.primaryCriteria.trim()) {
+        setError("Primary Criteria is required when using External Template");
+        return;
+      }
+      if (!projectData.secondaryCriteria.trim()) {
+        setError("Secondary Criteria is required when using External Template");
+        return;
+      }
+    }
+
     setLoading(true);
     setError("");
 
@@ -110,14 +139,10 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
 
       formData.append("status", projectData.status);
 
-      // Handle criteria - either custom or IZIEL template
-      if (useCustomCriteria) {
-        if (projectData.primaryCriteria.trim()) {
-          formData.append("primary_criteria", projectData.primaryCriteria.trim());
-        }
-        if (projectData.secondaryCriteria.trim()) {
-          formData.append("secondary_criteria", projectData.secondaryCriteria.trim());
-        }
+      // Handle criteria - only send if external template is selected
+      if (criteriaTemplate === "external") {
+        formData.append("primary_criteria", projectData.primaryCriteria.trim());
+        formData.append("secondary_criteria", projectData.secondaryCriteria.trim());
       }
 
       formData.append("ifu_pdf", ifuFile);
@@ -142,17 +167,17 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
       }
 
       // Reset form and close
+      const currentUser = accounts.length > 0 ? (accounts[0].name || accounts[0].username || "") : "";
       setProjectData({
         title: "",
-        owner: currentUser || "",
+        owner: currentUser,
         startDate: "",
         status: "Active",
         primaryCriteria: "",
         secondaryCriteria: "",
-        customCriteria: "",
       });
       setIfuFile(null);
-      setUseCustomCriteria(false);
+      setCriteriaTemplate("iziel");
       setLoading(false);
       handleClose();
 
@@ -177,16 +202,16 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
     handleClose();
     setError("");
     setIfuFile(null);
-    setUseCustomCriteria(false);
+    setCriteriaTemplate("iziel");
     setTimeout(() => {
+      const currentUser = accounts.length > 0 ? (accounts[0].name || accounts[0].username || "") : "";
       setProjectData({
         title: "",
-        owner: currentUser || "",
+        owner: currentUser,
         startDate: "",
         status: "Active",
         primaryCriteria: "",
         secondaryCriteria: "",
-        customCriteria: "",
       });
     }, 300);
   };
@@ -412,58 +437,111 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
               </Box>
             </Box>
 
-            {/* Criteria Selection Toggle */}
+            {/* Criteria Template Selection - Radio Buttons */}
             <Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
                 <Target size={18} color="#2196F3" />
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                  Selection Criteria Template
+                  Selection Of Template
                 </Typography>
               </Box>
 
-              <Box sx={{ 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "space-between",
-                p: 2,
-                bgcolor: "#E3F2FD",
-                borderRadius: 2,
-                mb: 2,
-                border: "1px solid #BBDEFB"
-              }}>
-                <Typography variant="body2" sx={{ color: "#1565C0", fontWeight: 500 }}>
-                  {useCustomCriteria 
-                    ? "If not following IZIEL template, add primary and secondary criteria"
-                    : "Following IZIEL template - no additional criteria needed"}
-                </Typography>
-                <Button
-                  size="small"
-                  onClick={() => setUseCustomCriteria(!useCustomCriteria)}
-                  sx={{
-                    textTransform: "none",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    bgcolor: useCustomCriteria ? "#fff" : "#2196F3",
-                    color: useCustomCriteria ? "#2196F3" : "#fff",
-                    px: 2,
-                    py: 0.5,
-                    borderRadius: 1.5,
-                    border: useCustomCriteria ? "1px solid #2196F3" : "none",
-                    "&:hover": {
-                      bgcolor: useCustomCriteria ? "#f5f5f5" : "#1976D2",
-                    }
-                  }}
+              <FormControl component="fieldset" fullWidth>
+                <RadioGroup
+                  value={criteriaTemplate}
+                  onChange={handleTemplateChange}
+                  sx={{ gap: 2 }}
                 >
-                  {useCustomCriteria ? "Use IZIEL Template" : "For External Criteria"}
-                </Button>
-              </Box>
+                  <Box
+                    sx={{
+                      border: criteriaTemplate === "iziel" ? "2px solid #2196F3" : "2px solid #e0e0e0",
+                      borderRadius: 2,
+                      p: 2,
+                      bgcolor: criteriaTemplate === "iziel" ? "#E3F2FD" : "#FAFAFA",
+                      transition: "all 0.3s ease",
+                      cursor: "pointer",
+                      "&:hover": {
+                        borderColor: "#2196F3",
+                        bgcolor: "#E3F2FD",
+                      }
+                    }}
+                    onClick={() => setCriteriaTemplate("iziel")}
+                  >
+                    <FormControlLabel
+                      value="iziel"
+                      control={
+                        <Radio 
+                          sx={{
+                            color: "#2196F3",
+                            "&.Mui-checked": {
+                              color: "#1976D2",
+                            }
+                          }}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body1" sx={{ fontWeight: 700, color: "#1565C0" }}>
+                            IZIEL Template
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: "#1565C0", mt: 0.5 }}>
+                            Following Iziel Template inclusion/exclusion criteria
+                          </Typography>
+                        </Box>
+                      }
+                      sx={{ margin: 0, width: "100%" }}
+                    />
+                  </Box>
 
-              {useCustomCriteria ? (
-                <>
-                  {/* External Template Criteria */}
-                  <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" sx={{ mb: 1.5, color: "#546E7A", fontWeight: 600 }}>
-                      Primary Criteria (Optional)
+                  <Box
+                    sx={{
+                      border: criteriaTemplate === "external" ? "2px solid #2196F3" : "2px solid #e0e0e0",
+                      borderRadius: 2,
+                      p: 2,
+                      bgcolor: criteriaTemplate === "external" ? "#E3F2FD" : "#FAFAFA",
+                      transition: "all 0.3s ease",
+                      cursor: "pointer",
+                      "&:hover": {
+                        borderColor: "#2196F3",
+                        bgcolor: "#E3F2FD",
+                      }
+                    }}
+                    onClick={() => setCriteriaTemplate("external")}
+                  >
+                    <FormControlLabel
+                      value="external"
+                      control={
+                        <Radio 
+                          sx={{
+                            color: "#2196F3",
+                            "&.Mui-checked": {
+                              color: "#1976D2",
+                            }
+                          }}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body1" sx={{ fontWeight: 700, color: "#1565C0" }}>
+                            External Template
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: "#1565C0", mt: 0.5 }}>
+                            Add custom primary and secondary criteria 
+                          </Typography>
+                        </Box>
+                      }
+                      sx={{ margin: 0, width: "100%" }}
+                    />
+                  </Box>
+                </RadioGroup>
+              </FormControl>
+
+              {/* External Template Criteria Fields */}
+              {criteriaTemplate === "external" && (
+                <Box sx={{ mt: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+                  <Box>
+                    <Typography variant="body2" sx={{ mb: 1.5, color: "#1565C0", fontWeight: 600 }}>
+                      Primary Criteria *
                     </Typography>
                     <TextField
                       name="primaryCriteria"
@@ -471,9 +549,10 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                       onChange={handleChange}
                       fullWidth
                       multiline
-                      rows={2}
-                      placeholder="Enter primary inclusion/exclusion criteria"
+                      rows={3}
+                      placeholder="Enter primary inclusion/exclusion criteria (Required)"
                       disabled={loading}
+                      required
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           borderRadius: 2,
@@ -486,8 +565,8 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                   </Box>
 
                   <Box>
-                    <Typography variant="body2" sx={{ mb: 1.5, color: "#546E7A", fontWeight: 600 }}>
-                      Secondary Criteria (Optional)
+                    <Typography variant="body2" sx={{ mb: 1.5, color: "#1565C0", fontWeight: 600 }}>
+                      Secondary Criteria *
                     </Typography>
                     <TextField
                       name="secondaryCriteria"
@@ -495,9 +574,10 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                       onChange={handleChange}
                       fullWidth
                       multiline
-                      rows={2}
-                      placeholder="Enter secondary inclusion/exclusion criteria"
+                      rows={3}
+                      placeholder="Enter secondary inclusion/exclusion criteria (Required)"
                       disabled={loading}
+                      required
                       sx={{
                         "& .MuiOutlinedInput-root": {
                           borderRadius: 2,
@@ -509,24 +589,12 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                     />
                   </Box>
 
-                  <Alert severity="info" sx={{ mt: 2, borderRadius: 2, bgcolor: "#E1F5FE", border: "1px solid #B3E5FC" }}>
+                  <Alert severity="info" sx={{ borderRadius: 2, bgcolor: "#E1F5FE", border: "1px solid #B3E5FC" }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: "#01579B" }}>
-                      External Template Criteria
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: "#0277BD" }}>
-                      You are using custom criteria instead of the standard IZIEL template
+                      Note: Both criteria fields are mandatory for External Template
                     </Typography>
                   </Alert>
-                </>
-              ) : (
-                <Alert severity="success" sx={{ borderRadius: 2, bgcolor: "#E8F5E9", border: "1px solid #C8E6C9" }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: "#2E7D32" }}>
-                    Using IZIEL Template
-                  </Typography>
-                  <Typography variant="caption" sx={{ color: "#388E3C" }}>
-                    Following standardized inclusion/exclusion criteria
-                  </Typography>
-                </Alert>
+                </Box>
               )}
             </Box>
 
@@ -539,7 +607,6 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
                     IFU Document *
                   </Typography>
                 </Box>
-           
               </Box>
               
               {!ifuFile ? (
@@ -649,7 +716,13 @@ export default function AddProjectDialog({ open, handleClose, handleSave, curren
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={!projectData.title || !projectData.owner || !ifuFile || loading}
+          disabled={
+            !projectData.title || 
+            !projectData.owner || 
+            !ifuFile || 
+            loading ||
+            (criteriaTemplate === "external" && (!projectData.primaryCriteria || !projectData.secondaryCriteria))
+          }
           sx={{
             px: 4,
             py: 1,

@@ -415,6 +415,7 @@ export default function SecondaryScreen() {
   const [activePdfUrl, setActivePdfUrl] = useState(null);
   const [loadingSecondary, setLoadingSecondary] = useState(false);
   const [refreshResults, setRefreshResults] = useState(0);
+  const [screenedArticleIds, setScreenedArticleIds] = useState([]);
  
   /* ---------- LOAD DATA ON MOUNT ---------- */
   useEffect(() => {
@@ -456,7 +457,6 @@ export default function SecondaryScreen() {
     formData.append("file", file);
 
     try {
-      // Find the literature_id from the article_id (PMID)
       const response = await fetch(
         `http://localhost:5000/api/secondary/upload-pdf/${projectId}/${pmid}`,
         { method: "POST", body: formData }
@@ -474,11 +474,7 @@ export default function SecondaryScreen() {
     }
   };
 
-
-
-
-  
-const handleRunSecondaryScreening = async () => {
+  const handleRunSecondaryScreening = async () => {
   if (selectedLiteratureIds.size === 0) {
     showNotification("Please select at least one article", "error");
     return;
@@ -486,25 +482,33 @@ const handleRunSecondaryScreening = async () => {
 
   setLoadingSecondary(true);
 
+  // Check if ALL articles are selected (Select All was used)
   const isAllSelected = selectedLiteratureIds.size === filteredRows.length;
 
   try {
     if (isAllSelected) {
+      // SCREEN ALL ARTICLES - Hit the /secondary-screen/{project_id} endpoint
+      console.log("Running screening for ALL articles");
       const response = await fetch(
         `http://localhost:5000/api/secondary/secondary-screen/${projectId}`,
         { method: "POST" }
       );
       
       if (!response.ok) {
-        throw new Error("Screening failed");
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Screening failed");
       }
       
-      // For "all selected", don't filter results
+      // Clear screened article tracking since all were screened
       setScreenedArticleIds([]);
+      
     } else {
+      // SCREEN ONLY SELECTED ARTICLES - Hit the /secondary-screen/selected/{project_id} endpoint
+      console.log("Running screening for SELECTED articles");
       const articleIds = [...selectedLiteratureIds];
       
-      // Create FormData for the request
+      // Since your backend expects literature_ids (not PMIDs), we'll use the PMIDs as-is
+      // Your backend should handle the conversion from PMID to literature_id
       const formData = new FormData();
       articleIds.forEach(id => {
         formData.append('literature_ids', id);
@@ -521,10 +525,10 @@ const handleRunSecondaryScreening = async () => {
       if (!response.ok) {
         const errorData = await response.json();
         console.error("Error details:", errorData);
-        throw new Error("Screening failed");
+        throw new Error(errorData.detail || "Screening failed");
       }
       
-      // Track which articles were screened
+      // Track which articles were screened (using PMIDs for UI)
       setScreenedArticleIds(articleIds);
     }
 
@@ -535,20 +539,14 @@ const handleRunSecondaryScreening = async () => {
     await loadPdfStatus();
     setRefreshResults(prev => prev + 1);
     setActiveView("results");
+    
   } catch (error) {
     console.error(error);
-    showNotification("Error running secondary screening", "error");
+    showNotification(error.message || "Error running secondary screening", "error");
   } finally {
     setLoadingSecondary(false);
   }
 };
-
-
-
-
-
-
-const [screenedArticleIds, setScreenedArticleIds] = useState([]);
   const openPdf = async (filename) => {
     try {
       const res = await fetch(
