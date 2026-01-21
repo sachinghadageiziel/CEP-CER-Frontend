@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
@@ -35,6 +35,8 @@ import {
   Edit,
   MoreVertical,
   FileDown,
+  PlayCircle,
+  ArrowRight,
 } from "lucide-react";
 import Layout from "../Layout/Layout";
 import LiteraturePopup from "../components/LiteraturePopup";
@@ -43,6 +45,7 @@ import LiteratureRecordModal from "../components/LiteratureRecordModal";
 
 export default function LiteraturePage() {
   const { id: PROJECT_ID } = useParams();
+  const navigate = useNavigate();
 
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState(null);
@@ -50,6 +53,11 @@ export default function LiteraturePage() {
   const [columns, setColumns] = useState([]);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+  
+  // Primary screening states
+  const [primaryRunning, setPrimaryRunning] = useState(false);
+  const [primaryProgress, setPrimaryProgress] = useState(0);
+  const [primaryComplete, setPrimaryComplete] = useState(false);
   
   // Error & Success handling
   const [error, setError] = useState(null);
@@ -63,18 +71,18 @@ export default function LiteraturePage() {
   // Filter state
   const [uniqueOnly, setUniqueOnly] = useState(true);
   const [applyDateFilter, setApplyDateFilter] = useState(false);
-const [fromDate, setFromDate] = useState("");
-const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
-const [filters, setFilters] = useState({
-  abstract: true,
-  freeFullText: false,
-  fullText: false,
-});
+  const [filters, setFilters] = useState({
+    abstract: true,
+    freeFullText: false,
+    fullText: false,
+  });
 
-const [databases, setDatabases] = useState({
-  pubmed: true,
-});
+  const [databases, setDatabases] = useState({
+    pubmed: true,
+  });
   
   // Export menu
   const [exportAnchor, setExportAnchor] = useState(null);
@@ -98,13 +106,15 @@ const [databases, setDatabases] = useState({
       
       if (data.exists && data.masterSheet && data.masterSheet.length > 0) {
         // Create columns dynamically
-        const cols = Object.keys(data.masterSheet[0]).map((key) => ({
-          field: key,
-          headerName: key,
-          flex: 1,
-          minWidth: key === "Abstract" ? 300 : 160,
-        }));
-        
+        const cols = Object.keys(data.masterSheet[0])
+          .filter((key) => key !== "Is Unique")
+          .map((key) => ({
+            field: key,
+            headerName: key,
+            flex: 1,
+            minWidth: key === "Abstract" ? 300 : 160,
+          }));
+
         setColumns(cols);
         setMasterData(data.masterSheet.map((row, i) => ({ id: i + 1, ...row })));
       } else {
@@ -203,6 +213,68 @@ const [databases, setDatabases] = useState({
       setProgress(0);
       setError(err.message || "Literature search failed");
       console.error("Literature search error:", err);
+    }
+  };
+
+  const handlePrimaryScreening = async () => {
+    if (masterData.length === 0) {
+      setError("No literature data available for primary screening");
+      return;
+    }
+
+    setPrimaryRunning(true);
+    setPrimaryProgress(5);
+    setError(null);
+    setPrimaryComplete(false);
+
+    // Progress simulation
+    let fakeProgress = 5;
+    const timer = setInterval(() => {
+      fakeProgress += Math.random() * 4;
+      if (fakeProgress < 90) setPrimaryProgress(Math.floor(fakeProgress));
+    }, 800);
+
+    try {
+      const formData = new FormData();
+      formData.append("project_id", PROJECT_ID);
+
+      const response = await fetch(
+        "http://localhost:5000/api/primary/primary-screen",
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      clearInterval(timer);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Primary screening failed");
+      }
+
+      const result = await response.json();
+      console.log("✅ Primary screening completed:", result);
+
+      setPrimaryProgress(100);
+      setPrimaryComplete(true);
+      setSuccessMessage(
+        `Primary screening completed! ${result.screened_articles} articles screened.`
+      );
+      setShowSuccess(true);
+
+      // Wait 2 seconds before redirecting
+      setTimeout(() => {
+        setPrimaryRunning(false);
+        navigate(`/project/${PROJECT_ID}/primary`);
+      }, 2000);
+
+    } catch (err) {
+      clearInterval(timer);
+      setPrimaryRunning(false);
+      setPrimaryProgress(0);
+      setError(err.message || "Primary screening failed");
+      console.error("Primary screening error:", err);
     }
   };
 
@@ -493,14 +565,14 @@ const [databases, setDatabases] = useState({
                 )}
               </AnimatePresence>
 
-{/* Results Section */}
+              {/* Results Section */}
               {masterData.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5 }}
                 >
-                  {/* Total Count Section - Moved to Top */}
+                  {/* Total Count Section */}
                   <Card 
                     sx={{ 
                       p: 3, 
@@ -556,6 +628,146 @@ const [databases, setDatabases] = useState({
                     </Box>
                   </Card>
 
+                  {/* Primary Screening Card */}
+                  <AnimatePresence>
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4 }}
+                    >
+                      <Card 
+                        sx={{ 
+                          p: 3, 
+                          mb: 3,
+                          borderRadius: 3,
+                          background: primaryComplete 
+                            ? "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)"
+                            : "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
+                          border: primaryComplete 
+                            ? "1px solid #86efac" 
+                            : "1px solid #fcd34d",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 2 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, flex: 1 }}>
+                            <Box
+                              sx={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 2,
+                                background: primaryComplete 
+                                  ? "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)"
+                                  : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                              }}
+                            >
+                              {primaryComplete ? (
+                                <CheckCircle size={24} color="#fff" />
+                              ) : (
+                                <PlayCircle size={24} color="#fff" />
+                              )}
+                            </Box>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b", mb: 0.5 }}>
+                                {primaryComplete ? "Primary Screening Complete!" : "Primary Screening"}
+                              </Typography>
+                              <Typography variant="body2" sx={{ color: "#64748b", mb: primaryRunning ? 1.5 : 0 }}>
+                                {primaryComplete 
+                                  ? "Redirecting to primary screening results..."
+                                  : primaryRunning 
+                                  ? "Analyzing articles using IFU criteria..."
+                                  : `${masterData.length} articles ready to be screened`}
+                              </Typography>
+                              
+                              {/* Progress bar when running */}
+                              {primaryRunning && (
+                                <Box sx={{ mt: 1 }}>
+                                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
+                                    <Typography variant="caption" sx={{ fontWeight: 600, color: "#64748b" }}>
+                                      Processing...
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ fontWeight: 700, color: "#f59e0b" }}>
+                                      {primaryProgress}%
+                                    </Typography>
+                                  </Box>
+                                  <LinearProgress 
+                                    variant="determinate" 
+                                    value={primaryProgress}
+                                    sx={{
+                                      height: 6,
+                                      borderRadius: 3,
+                                      bgcolor: "rgba(245, 158, 11, 0.2)",
+                                      "& .MuiLinearProgress-bar": {
+                                        background: "linear-gradient(90deg, #f59e0b 0%, #d97706 100%)",
+                                        borderRadius: 3,
+                                      }
+                                    }}
+                                  />
+                                </Box>
+                              )}
+                            </Box>
+                          </Box>
+                          
+                          {!primaryComplete && (
+                            <Button
+                              variant="contained"
+                              disabled={primaryRunning}
+                              onClick={handlePrimaryScreening}
+                              endIcon={primaryRunning ? null : <ArrowRight size={18} />}
+                              sx={{
+                                background: primaryRunning
+                                  ? "#cbd5e1"
+                                  : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                                color: "#fff",
+                                px: 3,
+                                py: 1,
+                                borderRadius: 2,
+                                fontWeight: 600,
+                                textTransform: "none",
+                                minWidth: 200,
+                                boxShadow: primaryRunning 
+                                  ? "none" 
+                                  : "0 4px 12px rgba(245, 158, 11, 0.3)",
+                                "&:hover": {
+                                  background: primaryRunning
+                                    ? "#cbd5e1"
+                                    : "linear-gradient(135deg, #d97706 0%, #b45309 100%)",
+                                  transform: primaryRunning ? "none" : "translateY(-2px)",
+                                  boxShadow: primaryRunning 
+                                    ? "none" 
+                                    : "0 6px 16px rgba(245, 158, 11, 0.4)",
+                                },
+                                transition: "all 0.3s ease",
+                                "&:disabled": {
+                                  background: "#cbd5e1",
+                                  color: "#94a3b8",
+                                }
+                              }}
+                            >
+                              {primaryRunning ? (
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                  <motion.div
+                                    animate={{ rotate: 360 }}
+                                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                                  >
+                                    <RefreshCw size={18} />
+                                  </motion.div>
+                                  Processing...
+                                </Box>
+                              ) : (
+                                "Start Primary Screening"
+                              )}
+                            </Button>
+                          )}
+                        </Box>
+                      </Card>
+                    </motion.div>
+                  </AnimatePresence>
+
                   <Box sx={{ 
                     display: "flex", 
                     justifyContent: "space-between", 
@@ -609,25 +821,6 @@ const [databases, setDatabases] = useState({
                             }}
                           />
                         </Tooltip>
-
-                        {/* <Tooltip title="Show only unique records (no duplicates)">
-                          <Chip
-                            icon={<CheckCircle size={14} />}
-                            label="Unique Records"
-                            onClick={() => setUniqueOnly(true)}
-                            variant={uniqueOnly ? "filled" : "outlined"}
-                            color={uniqueOnly ? "primary" : "default"}
-                            sx={{ 
-                              cursor: "pointer",
-                              fontWeight: 600,
-                              "&:hover": {
-                                transform: "translateY(-2px)",
-                                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                              },
-                              transition: "all 0.2s ease",
-                            }}
-                          />
-                        </Tooltip> */}
                       </Box>
                     </Box>
                     
@@ -780,26 +973,24 @@ const [databases, setDatabases] = useState({
         </Container>
 
         <LiteraturePopup
-  open={open}
-  onClose={() => setOpen(false)}
-  file={file}
-  onFileUpload={handleUpload}
-  onSearch={handleSearch}
-  running={running}
-  progress={progress}
-
-  applyDateFilter={applyDateFilter}
-  setApplyDateFilter={setApplyDateFilter}
-  fromDate={fromDate}
-  setFromDate={setFromDate}
-  toDate={toDate}
-  setToDate={setToDate}
-  filters={filters}
-  setFilters={setFilters}
-  databases={databases}
-  setDatabases={setDatabases}
-/>
-
+          open={open}
+          onClose={() => setOpen(false)}
+          file={file}
+          onFileUpload={handleUpload}
+          onSearch={handleSearch}
+          running={running}
+          progress={progress}
+          applyDateFilter={applyDateFilter}
+          setApplyDateFilter={setApplyDateFilter}
+          fromDate={fromDate}
+          setFromDate={setFromDate}
+          toDate={toDate}
+          setToDate={setToDate}
+          filters={filters}
+          setFilters={setFilters}
+          databases={databases}
+          setDatabases={setDatabases}
+        />
 
         <LiteratureRecordModal
           open={modalOpen}
