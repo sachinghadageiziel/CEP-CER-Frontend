@@ -782,46 +782,38 @@ export default function LiteraturePage() {
                       </Typography>
                       
                       {/* Filter Menu */}
-                      <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                        <Tooltip title="Show all records including duplicates">
-                          <Chip
-                            icon={<Database size={14} />}
-                            label="All Records"
-                            onClick={() => setUniqueOnly(false)}
-                            variant={!uniqueOnly ? "filled" : "outlined"}
-                            color={!uniqueOnly ? "primary" : "default"}
-                            sx={{ 
-                              cursor: "pointer",
-                              fontWeight: 600,
-                              "&:hover": {
-                                transform: "translateY(-2px)",
-                                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                              },
-                              transition: "all 0.2s ease",
-                            }}
-                          />
-                        </Tooltip>
+                     <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+  <Tooltip title="Show all records including duplicates">
+    <Chip
+      icon={<Database size={14} />}
+      label="All Records"
+      onClick={() => setUniqueOnly(false)}
+      variant={!uniqueOnly ? "filled" : "outlined"}
+      color={!uniqueOnly ? "primary" : "default"}
+      sx={{
+        cursor: "pointer",
+        fontWeight: 600,
+        transition: "all 0.2s ease",
+      }}
+    />
+  </Tooltip>
 
-                        <Tooltip title="Show only duplicate records">
-                          <Chip
-                            icon={<AlertCircle size={14} />}
-                            label="Duplicates Only"
-                            onClick={() => {/* Will implement duplicate filter */}}
-                            variant="outlined"
-                            sx={{ 
-                              cursor: "pointer",
-                              fontWeight: 600,
-                              opacity: 0.5,
-                              "&:hover": {
-                                opacity: 1,
-                                transform: "translateY(-2px)",
-                                boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-                              },
-                              transition: "all 0.2s ease",
-                            }}
-                          />
-                        </Tooltip>
-                      </Box>
+  <Tooltip title="Show only unique records (duplicates removed)">
+    <Chip
+      icon={<AlertCircle size={14} />}
+      label="Non-Duplicates"
+      onClick={() => setUniqueOnly(true)}
+      variant={uniqueOnly ? "filled" : "outlined"}
+      color={uniqueOnly ? "primary" : "default"}
+      sx={{
+        cursor: "pointer",
+        fontWeight: 600,
+        transition: "all 0.2s ease",
+      }}
+    />
+  </Tooltip>
+</Box>
+
                     </Box>
                     
                     {/* Export Button with Menu */}
